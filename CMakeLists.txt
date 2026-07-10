@@ -18,6 +18,9 @@ set(CMAKE_CUDA_FLAGS_RELEASE "-O3 --use_fast_math")
 
 add_executable(galaxy_sim
   src/main.cu
+  src/simulation.cu
+  src/forces.cu
+  src/integrator.cu
 )
 
 target_include_directories(galaxy_sim PRIVATE src)

@@ -123,6 +123,7 @@ def main():
         e, ke, pe = total_energy(pos, vel, mass, eps2, G, args.chunk)
         rel = (e - e0) / abs(e0)
         elog.write(f"{step},{step * args.dt:.5f},{e:.8e},{ke:.8e},{pe:.8e},{rel:.3e}\n")
+        elog.flush()
         return rel
 
     frame = 0

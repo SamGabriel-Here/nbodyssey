@@ -9,6 +9,10 @@ frames/
 *.mp4
 *.png
 
+# ...but keep curated media checked into docs/
+!docs/*.png
+!docs/*.gif
+
 # benchmark logs are checked in selectively; ignore scratch runs
 benchmarks/*.tmp
 

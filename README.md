@@ -1,5 +1,7 @@
 # galaxy-collision-cuda
 
+[![build](https://github.com/SamGabriel-Here/galaxy-collision-cuda/actions/workflows/build.yml/badge.svg)](https://github.com/SamGabriel-Here/galaxy-collision-cuda/actions/workflows/build.yml)
+
 A GPU-accelerated N-body simulator for galaxy collisions, written in CUDA C++.
 Two disk galaxies are seeded with realistic rotation curves, released toward each
 other, and integrated forward under mutual gravity. Particle state lives on the

@@ -1,0 +1,35 @@
+name: build
+
+# Compile the CUDA sources on a GPU-less runner. nvcc can generate device code
+# for a target architecture without a physical GPU present, so this verifies the
+# kernels compile and link even though it cannot run them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CUDA toolkit
+        uses: Jimver/cuda-toolkit@v0.2.19
+        id: cuda
+        with:
+          cuda: '12.5.0'
+          method: 'network'
+          sub-packages: '["nvcc", "cudart-dev"]'
+
+      - name: Tool versions
+        run: |
+          nvcc --version
+          cmake --version
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=75
+
+      - name: Build
+        run: cmake --build build -j

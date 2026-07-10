@@ -12,21 +12,51 @@ shared-memory tiling first, then a Barnes-Hut tree code, with timing and energy
 diagnostics built in so the optimization story is measurable rather than
 asserted.
 
+![galaxy collision](docs/collision.gif)
+
+*Two disk galaxies on a grazing encounter, colored by their galaxy of origin.
+12k particles integrated with leapfrog under softened gravity; the pass strips
+material into tidal tails and bridges before the cores fall back together.*
+
 ## Status
 
-Early. The repository is scaffolded with the architecture, build system, and
-benchmarking hooks in place. The physics kernels are next.
+The full naive pipeline is in place: generate two colliding disks, integrate on
+the GPU, dump frames, render. The physics is validated against a CPU reference
+integrator (see below), and the CUDA sources are compiled in CI. Next up is the
+Barnes-Hut force module and, with it, the performance writeup.
 
 Milestones:
 
 - [x] Repo, build system, architecture, benchmarking harness scaffold
-- [ ] Initial-condition generator (two Kuzmin/exponential disks)
-- [ ] Naive O(n^2) force kernel with shared-memory tiling
-- [ ] Leapfrog (kick-drift-kick) integrator
-- [ ] CUDA-event kernel timing + energy-vs-time log
-- [ ] Frame dumps + offline matplotlib renderer
+- [x] Initial-condition generator (two exponential disks)
+- [x] Naive O(n^2) force kernel with shared-memory tiling
+- [x] Leapfrog (kick-drift-kick) integrator
+- [x] CUDA-event kernel timing + energy-vs-time log
+- [x] Frame dumps + offline matplotlib renderer
+- [x] CPU reference integrator + energy-conservation validation
 - [ ] Barnes-Hut O(n log n) force module
 - [ ] Performance writeup comparing the two force modules
+
+## Validation
+
+Because the state is single precision, correctness is not obvious, so the physics
+is pinned two ways.
+
+A CPU reference integrator (`scripts/reference_nbody.py`) implements the same
+force law, kick-drift-kick scheme, and energy diagnostic in NumPy. Running a full
+two-galaxy collision and tracking total energy gives the plot below: kinetic
+energy peaks at pericenter as the disks fall together, the potential well deepens
+in step, and total energy stays flat. The relative energy error stays bounded
+within about 0.02% across the encounter and oscillates rather than drifting --
+the signature of a symplectic integrator.
+
+![energy conservation](docs/energy_conservation.png)
+
+The reference also doubles as a GPU-free way to exercise the whole pipeline: it
+writes frames and energy logs in the same on-disk formats the CUDA path uses, so
+the renderer and downstream tooling are validated end to end. The GPU kernels are
+written to mirror the reference and are compiled in CI (`nvcc` targets a device
+architecture without needing a physical GPU on the runner).
 
 ## Architecture
 

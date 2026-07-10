@@ -1,0 +1,25 @@
+# build output
+build/
+*.o
+*.obj
+
+# simulation output
+frames/
+*.bin
+*.mp4
+*.png
+
+# benchmark logs are checked in selectively; ignore scratch runs
+benchmarks/*.tmp
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# editor / os
+.DS_Store
+.vscode/
+.idea/
+compile_commands.json

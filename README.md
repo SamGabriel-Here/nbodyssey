@@ -31,8 +31,9 @@ separating cores, and settle into disrupted remnants.*
 
 The full naive pipeline is in place: generate two colliding disks, integrate on
 the GPU, dump frames, render. The physics is validated against a CPU reference
-integrator (see below), and the CUDA sources are compiled in CI. Next up is the
-Barnes-Hut force module and, with it, the performance writeup.
+integrator (see below), and the CUDA sources are compiled in CI. The Barnes-Hut
+approximation is validated on a CPU oracle; the GPU tree code (Karras LBVH) is
+in progress, and the performance writeup follows once it runs.
 
 Milestones:
 
@@ -43,7 +44,8 @@ Milestones:
 - [x] CUDA-event kernel timing + energy-vs-time log
 - [x] Frame dumps + offline matplotlib renderer
 - [x] CPU reference integrator + energy-conservation validation
-- [ ] Barnes-Hut O(n log n) force module
+- [x] Barnes-Hut approximation validated on a CPU oracle
+- [ ] Barnes-Hut O(n log n) force module on the GPU (Karras LBVH)
 - [ ] Performance writeup comparing the two force modules
 
 ## Validation
@@ -66,6 +68,18 @@ writes frames and energy logs in the same on-disk formats the CUDA path uses, so
 the renderer and downstream tooling are validated end to end. The GPU kernels are
 written to mirror the reference and are compiled in CI (`nvcc` targets a device
 architecture without needing a physical GPU on the runner).
+
+The Barnes-Hut tree approximation is pinned the same way, ahead of the GPU port.
+A CPU oracle (`scripts/barnes_hut_reference.py`) builds the octree, computes the
+cell centers of mass, and evaluates the softened force with the opening-angle
+criterion, then checks it against the exact all-pairs force. At `theta = 0` no
+cell is ever accepted and the result matches the exact force to round-off
+(~1e-15), confirming the traversal and center-of-mass bookkeeping; as `theta`
+grows, the force error rises smoothly while the interactions per particle
+collapse from O(n) toward O(log n). At the usual `theta = 0.5` that is roughly a
+1% median force error for an ~18x cut in force evaluations.
+
+![Barnes-Hut accuracy and cost](docs/bh_accuracy.png)
 
 ## Architecture
 

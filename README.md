@@ -1,6 +1,6 @@
-# galaxy-collision-cuda
+# nbodyssey
 
-[![build](https://github.com/SamGabriel-Here/galaxy-collision-cuda/actions/workflows/build.yml/badge.svg)](https://github.com/SamGabriel-Here/galaxy-collision-cuda/actions/workflows/build.yml)
+[![build](https://github.com/SamGabriel-Here/nbodyssey/actions/workflows/build.yml/badge.svg)](https://github.com/SamGabriel-Here/nbodyssey/actions/workflows/build.yml)
 ![CUDA C++](https://img.shields.io/badge/CUDA-C%2B%2B-76B900?logo=nvidia&logoColor=white)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)

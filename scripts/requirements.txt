@@ -1,0 +1,4 @@
+# Python tooling for the IC generator, CPU reference integrator, and renderers.
+# The CUDA simulator itself has no Python dependency.
+numpy>=1.24
+matplotlib>=3.7

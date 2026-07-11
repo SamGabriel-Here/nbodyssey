@@ -1,6 +1,9 @@
 # galaxy-collision-cuda
 
 [![build](https://github.com/SamGabriel-Here/galaxy-collision-cuda/actions/workflows/build.yml/badge.svg)](https://github.com/SamGabriel-Here/galaxy-collision-cuda/actions/workflows/build.yml)
+![CUDA C++](https://img.shields.io/badge/CUDA-C%2B%2B-76B900?logo=nvidia&logoColor=white)
+![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A GPU-accelerated N-body simulator for galaxy collisions, written in CUDA C++.
 Two disk galaxies are seeded with realistic rotation curves, released toward each
@@ -17,6 +20,12 @@ asserted.
 *Two disk galaxies on a grazing encounter, colored by their galaxy of origin.
 12k particles integrated with leapfrog under softened gravity; the pass strips
 material into tidal tails and bridges before the cores fall back together.*
+
+![stages of the collision](docs/stages.png)
+
+*The same run frozen at five moments: the disks approach, interpenetrate at first
+contact, reach closest approach at pericenter, stretch a tidal bridge between the
+separating cores, and settle into disrupted remnants.*
 
 ## Status
 
@@ -117,40 +126,56 @@ Logs land in `benchmarks/`.
 ## Repository layout
 
 ```
-src/         CUDA kernels and host driver
-scripts/     initial-condition generator and offline renderer (Python)
+src/         CUDA kernels and host driver (forces, integrator, energy, main)
+scripts/     IC generator, CPU reference integrator, and renderers (Python)
 benchmarks/  timing and energy logs
-docs/        architecture notes and the performance writeup
+docs/        binary-format notes (FORMATS.md), figures, and the perf writeup
 ```
 
-## Building
+On-disk binary layouts (initial conditions and frame dumps) are documented in
+[docs/FORMATS.md](docs/FORMATS.md).
 
-The build targets a CUDA-capable Linux machine with the CUDA Toolkit and a recent
-CMake. Note that macOS has no CUDA support, so the code is developed on macOS but
-built and run on a GPU host.
+## Quickstart (no GPU required)
+
+The CPU reference integrator runs the same physics in NumPy and writes the same
+on-disk formats, so the entire pipeline — including the animation above — can be
+reproduced without CUDA hardware.
+
+```
+# set up the Python tooling
+python -m venv .venv && source .venv/bin/activate
+pip install -r scripts/requirements.txt
+
+# generate two colliding disk galaxies
+python scripts/generate_ic.py --particles 12000 --out ic.bin
+
+# integrate on the CPU reference (this is what produced the figures above)
+python scripts/reference_nbody.py --ic ic.bin --steps 1500 --dump-every 5 --out frames/
+
+# render the frames to a movie (pass a directory instead of an .mp4 to keep PNGs)
+python scripts/render.py --frames frames/ --out collision.mp4
+
+# plot energy conservation from the log the run wrote
+python scripts/plot_energy.py --log benchmarks/energy_reference.csv --out energy.png
+```
+
+## Building the GPU version
+
+The CUDA path targets a Linux machine with the CUDA Toolkit and a recent CMake.
+macOS has no CUDA support, so the code is developed on macOS but built and run on
+a GPU host. The command-line interface matches the reference integrator, so the
+same IC file and flags work with either.
 
 ```
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
+
+./build/galaxy_sim --ic ic.bin --steps 1500 --dump-every 5 --out frames/
 ```
 
 Set `-DCMAKE_CUDA_ARCHITECTURES=<sm>` to match the target GPU (for example `86`
-for Ampere, `89` for Ada).
-
-## Running
-
-```
-# generate two colliding disk galaxies
-python scripts/generate_ic.py --particles 50000 --out ic.bin
-
-# integrate, dumping a frame every 10 steps
-./build/galaxy_sim --ic ic.bin --steps 2000 --dump-every 10 --out frames/
-
-# render the dumped frames
-python scripts/render.py --frames frames/ --out collision.mp4
-```
-
-Flags and formats will be documented here as they land.
+for Ampere, `89` for Ada). The run reports force-kernel timing and throughput on
+exit and writes an energy log alongside the frames.
 
 ## License
 

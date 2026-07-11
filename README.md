@@ -29,12 +29,12 @@ separating cores, and settle into disrupted remnants.*
 
 ## Status
 
-The full naive pipeline is in place: generate two colliding disks, integrate on
-the GPU, dump frames, render. The physics is validated against a CPU reference
-integrator (see below). The Barnes-Hut approximation is validated on a CPU
-oracle, and the GPU tree code (Karras LBVH + CUB radix sort) is written and
-compiles in CI; running and benchmarking it against the naive kernel needs GPU
-hardware, which is the next step along with the performance writeup.
+Both force modules are complete and benchmarked on hardware: the naive kernel
+sustains ~4 TFLOP/s on a Tesla T4, and the Barnes-Hut tree code overtakes it
+from ~12k particles up to a **47x speedup at one million** — with the `theta=0`
+exactness gate passing on device first. See the
+[performance writeup](docs/PERFORMANCE.md). The one flagged optimization still
+open is a warp-cooperative tree traversal.
 
 Milestones:
 
@@ -47,8 +47,9 @@ Milestones:
 - [x] CPU reference integrator + energy-conservation validation
 - [x] Barnes-Hut approximation validated on a CPU oracle
 - [x] GPU Barnes-Hut module (Karras LBVH + CUB radix sort), compiling in CI
-- [ ] GPU session: `--compare-forces` validation and naive-vs-BH benchmarks
-- [ ] Performance writeup comparing the two force modules
+- [x] GPU session: `--compare-forces` gate passed, naive-vs-BH benchmarked (T4)
+- [x] Performance writeup comparing the two force modules
+- [ ] Warp-cooperative traversal (the measured next optimization)
 
 ## Validation
 
@@ -89,6 +90,27 @@ pass, and stack traversal (`scripts/lbvh_check.py`) runs on every push and
 asserts that the tree is well formed (including under duplicate keys), that
 `theta = 0` reproduces the exact force to round-off, and that the traversal
 stack stays far below the depth limit hard-coded in the kernels.
+
+## Performance
+
+Measured on a Tesla T4, timing the full force computation with CUDA events —
+for Barnes-Hut that includes rebuilding the tree every step:
+
+![benchmark](docs/benchmark_t4.png)
+
+| n | naive | Barnes-Hut (theta = 0.5) | speedup |
+|---:|---:|---:|---:|
+| 12,000 | 0.95 ms | 0.53 ms | 1.8x |
+| 100,000 | 48.9 ms | 4.62 ms | 10.6x |
+| 1,000,000 | 5,269.9 ms | 111.6 ms | **47.2x** |
+
+The naive kernel is a real baseline — ~204 Ginteractions/s, about half the
+T4's fp32 peak — and still wins below ~8k particles, where tree overhead and
+traversal divergence outweigh asymptotics. From 12k up the tree pulls away.
+Tree construction is essentially free (~3 ms of the 112 ms at 1M); 97% of
+Barnes-Hut time is traversal, which is what the planned warp-cooperative
+version attacks. Full analysis, phase breakdowns, and the theta accuracy/cost
+dial: [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture
 

@@ -214,6 +214,11 @@ for Ampere, `89` for Ada). The run reports force timing on exit — plus a
 per-phase breakdown of the tree pipeline under `--force bh` — and writes an
 energy log alongside the frames.
 
+The entire benchmark session is scripted: `bash scripts/gpu_bench.sh` on any
+CUDA machine (a Colab T4 works) builds, runs the `--compare-forces` gate, sweeps
+naive vs Barnes-Hut across particle counts, and leaves the results in
+`benchmarks/gpu_results.csv`.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

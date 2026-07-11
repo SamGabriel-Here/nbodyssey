@@ -2,7 +2,9 @@ name: build
 
 # Compile the CUDA sources on a GPU-less runner. nvcc can generate device code
 # for a target architecture without a physical GPU present, so this verifies the
-# kernels compile and link even though it cannot run them.
+# kernels compile and link even though it cannot run them. The logic job then
+# executes a line-for-line CPU mirror of the Barnes-Hut tree code, so the part
+# CI cannot run on a GPU is still tested, not just compiled.
 
 on:
   push:
@@ -32,3 +34,18 @@ jobs:
 
       - name: Build
         run: cmake --build build -j
+
+  logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install numpy
+        run: pip install numpy
+
+      - name: Barnes-Hut tree logic (CPU mirror of forces_bh.cu)
+        run: python scripts/lbvh_check.py

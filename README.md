@@ -83,6 +83,13 @@ collapse from O(n) toward O(log n). At the usual `theta = 0.5` that is roughly a
 
 ![Barnes-Hut accuracy and cost](docs/bh_accuracy.png)
 
+The GPU tree code itself is tested in CI, not just compiled: a line-for-line
+CPU mirror of its Morton encoding, Karras radix-tree build, centers-of-mass
+pass, and stack traversal (`scripts/lbvh_check.py`) runs on every push and
+asserts that the tree is well formed (including under duplicate keys), that
+`theta = 0` reproduces the exact force to round-off, and that the traversal
+stack stays far below the depth limit hard-coded in the kernels.
+
 ## Architecture
 
 The design is fixed up front so the force computation can be swapped without

@@ -51,6 +51,14 @@ __global__ void force_kernel(const float4* __restrict__ pos, float4* __restrict_
   if (i < n) acc[i] = make_float4(G * ai.x, G * ai.y, G * ai.z, 0.f);
 }
 
+void forces_naive(const ParticleSystem& sys, float4* d_acc, const SimParams& p) {
+  int blocks = (sys.n + kForceBlock - 1) / kForceBlock;
+  size_t shmem = kForceBlock * sizeof(float4);
+  float eps2 = p.epsilon * p.epsilon;
+  force_kernel<<<blocks, kForceBlock, shmem>>>(sys.d_pos, d_acc, sys.n, eps2, p.G);
+  CUDA_CHECK(cudaGetLastError());
+}
+
 namespace {
 double g_ms = 0.0;
 long g_calls = 0;
@@ -62,15 +70,14 @@ void compute_forces(const ParticleSystem& sys, float4* d_acc, const SimParams& p
     CUDA_CHECK(cudaEventCreate(&g_start));
     CUDA_CHECK(cudaEventCreate(&g_stop));
   }
-  int blocks = (sys.n + kForceBlock - 1) / kForceBlock;
-  size_t shmem = kForceBlock * sizeof(float4);
-  float eps2 = p.epsilon * p.epsilon;
-
   CUDA_CHECK(cudaEventRecord(g_start));
-  force_kernel<<<blocks, kForceBlock, shmem>>>(sys.d_pos, d_acc, sys.n, eps2, p.G);
+  if (p.force == ForceMethod::kBarnesHut) {
+    forces_barnes_hut(sys, d_acc, p);
+  } else {
+    forces_naive(sys, d_acc, p);
+  }
   CUDA_CHECK(cudaEventRecord(g_stop));
   CUDA_CHECK(cudaEventSynchronize(g_stop));
-  CUDA_CHECK(cudaGetLastError());
 
   float ms = 0.f;
   CUDA_CHECK(cudaEventElapsedTime(&ms, g_start, g_stop));

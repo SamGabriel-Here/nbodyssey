@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(galaxy_collision_cuda LANGUAGES CXX CUDA)
+project(nbodyssey LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,6 +20,7 @@ add_executable(galaxy_sim
   src/main.cu
   src/simulation.cu
   src/forces.cu
+  src/forces_bh.cu
   src/integrator.cu
 )
 

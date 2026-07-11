@@ -1,11 +1,15 @@
 #pragma once
 #include <vector_types.h>
 
+enum class ForceMethod { kNaive, kBarnesHut };
+
 // Simulation parameters shared across host and device code.
 struct SimParams {
   float dt;         // timestep
   float epsilon;    // softening length
   float G = 1.0f;   // gravitational constant in simulation units
+  float theta = 0.5f;                        // BH opening angle; 0 = exact
+  ForceMethod force = ForceMethod::kNaive;   // which force module runs
 };
 
 // Particle state in structure-of-arrays form, resident on the device.

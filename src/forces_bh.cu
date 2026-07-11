@@ -376,6 +376,76 @@ __global__ void traverse_kernel(const float4* __restrict__ pos_sorted,
   acc[perm[t]] = make_float4(G * ai.x, G * ai.y, G * ai.z, 0.f);
 }
 
+// Warp-cooperative variant: one warp walks one shared path. A node is opened
+// if any lane needs it open (__any_sync); otherwise every lane accepts it as a
+// point mass. A lane that would have accepted an ancestor instead interacts
+// with its descendants, which only refines that lane's result, so accuracy at
+// a given theta is never worse than the per-thread walk. The trade: the warp's
+// loads of children/COM/size become one uniform access instead of 32 divergent
+// ones, at the cost of lanes doing interactions they did not strictly need.
+// Morton order makes neighboring lanes want nearly the same path, which is
+// what keeps the extra work small. Which effect wins is measured, not
+// asserted (docs/PERFORMANCE.md).
+//
+// The stack is per-warp in shared memory, written by lane 0 only. Control flow
+// is warp-uniform (id and sp are identical across lanes), and the two
+// __syncwarp() calls order the pop-read against the reuse of that slot by the
+// next push.
+
+__global__ void traverse_warp_kernel(const float4* __restrict__ pos_sorted,
+                                     const int* __restrict__ perm, int n,
+                                     const int2* __restrict__ children,
+                                     const float4* __restrict__ com,
+                                     const float* __restrict__ size,
+                                     float theta2, float eps2, float G,
+                                     float4* acc) {
+  extern __shared__ int warp_stacks[];
+  int lane = threadIdx.x & 31;
+  int t = blockIdx.x * blockDim.x + threadIdx.x;
+  int* stack = warp_stacks + (threadIdx.x >> 5) * kBhStack;
+
+  bool live = t < n;
+  float4 bi = pos_sorted[live ? t : n - 1];
+  float3 ai = {0.f, 0.f, 0.f};
+
+  if (lane == 0) stack[0] = 0;
+  __syncwarp();
+  int sp = 1;
+  while (sp > 0) {
+    int id = stack[--sp];
+    __syncwarp();   // every lane has read the slot before a push can reuse it
+    float4 src;
+    if (id >= n - 1) {
+      src = pos_sorted[id - (n - 1)];
+    } else {
+      float4 c = com[id];
+      float dx = c.x - bi.x, dy = c.y - bi.y, dz = c.z - bi.z;
+      float d2 = dx * dx + dy * dy + dz * dz;
+      float s = size[id];
+      bool open = live && !(s * s < theta2 * d2);
+      if (__any_sync(0xffffffff, open)) {
+        int2 ch = children[id];
+        if (lane == 0) {
+          stack[sp] = ch.x;
+          stack[sp + 1] = ch.y;
+        }
+        sp += 2;
+        __syncwarp();
+        continue;
+      }
+      src = c;
+    }
+    float dx = src.x - bi.x, dy = src.y - bi.y, dz = src.z - bi.z;
+    float dist2 = dx * dx + dy * dy + dz * dz + eps2;
+    float invr = rsqrtf(dist2);
+    float f = src.w * invr * invr * invr;
+    ai.x += dx * f;
+    ai.y += dy * f;
+    ai.z += dz * f;
+  }
+  if (live) acc[perm[t]] = make_float4(G * ai.x, G * ai.y, G * ai.z, 0.f);
+}
+
 template <typename F>
 void timed_phase(Phase ph, F&& launch) {
   CUDA_CHECK(cudaEventRecord(g_pa));
@@ -441,9 +511,16 @@ void forces_barnes_hut(const ParticleSystem& sys, float4* d_acc,
   });
 
   timed_phase(kTraverse, [&] {
-    traverse_kernel<<<blocks, kForceBlock>>>(g_s.pos_sorted, perm, n,
-                                             g_s.children, g_s.com, g_s.size,
-                                             theta2, eps2, p.G, d_acc);
+    if (p.traverse == BhTraversal::kWarp) {
+      size_t shmem = (kForceBlock / 32) * kBhStack * sizeof(int);
+      traverse_warp_kernel<<<blocks, kForceBlock, shmem>>>(
+          g_s.pos_sorted, perm, n, g_s.children, g_s.com, g_s.size, theta2,
+          eps2, p.G, d_acc);
+    } else {
+      traverse_kernel<<<blocks, kForceBlock>>>(g_s.pos_sorted, perm, n,
+                                               g_s.children, g_s.com, g_s.size,
+                                               theta2, eps2, p.G, d_acc);
+    }
   });
 
   ++g_bh_calls;

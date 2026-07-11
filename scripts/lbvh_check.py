@@ -177,6 +177,38 @@ def traverse(t, pos_sorted, mass_sorted, children, com, size, n, theta, eps2):
     return acc, interactions, max_depth
 
 
+def traverse_warp(base, pos_sorted, mass_sorted, children, com, size, n,
+                  theta, eps2):
+    """Warp-cooperative walk over lanes base..base+31, as traverse_warp_kernel:
+    one shared stack, a node opens if any live lane needs it, otherwise every
+    lane accepts it. Returns per-lane accs plus interaction count and depth."""
+    lanes = [base + l for l in range(32) if base + l < n]
+    bis = pos_sorted[lanes]
+    accs = np.zeros((len(lanes), 3))
+    interactions = 0
+    max_depth = 0
+    stack = [0]
+    while stack:
+        max_depth = max(max_depth, len(stack))
+        id_ = stack.pop()
+        if id_ >= n - 1:
+            i = id_ - (n - 1)
+            src, sm = pos_sorted[i], mass_sorted[i]
+        else:
+            c = com[id_]
+            d2 = np.sum((c[:3] - bis) ** 2, axis=1)
+            s = size[id_]
+            if np.any(s * s >= theta * theta * d2):   # any lane votes to open
+                stack.extend(children[id_])
+                continue
+            src, sm = c[:3], c[3]
+        d = src - bis
+        inv = (np.sum(d * d, axis=1) + eps2) ** -1.5
+        accs += (sm * inv)[:, None] * d
+        interactions += 1
+    return accs, lanes, interactions, max_depth
+
+
 def exact_accel(targets, pos, mass, eps2):
     d = pos[np.newaxis, :, :] - pos[targets][:, np.newaxis, :]
     inv = (np.sum(d * d, axis=2) + eps2) ** -1.5
@@ -249,6 +281,38 @@ def main():
     assert worst_depth < STACK_LIMIT, \
         f"stack depth {worst_depth} too close to kBhStack={STACK_LIMIT}"
     print(f"stack depth bounded well under kBhStack={STACK_LIMIT}")
+
+    # warp-cooperative walk: same shared-path voting as traverse_warp_kernel
+    warp_bases = [int(b) * 32 for b in rng.choice(n // 32, size=8,
+                                                  replace=False)]
+    warp_err0 = 0.0
+    warp_errs, warp_inters, warp_depth = [], [], 0
+    for base in warp_bases:
+        accs, lanes, ni, depth = traverse_warp(base, pos_sorted, mass_sorted,
+                                               children, com, size, n, 0.0,
+                                               eps2)
+        assert ni == n, f"warp theta=0 must touch every leaf, got {ni}"
+        ref_w = exact_accel(lanes, pos_sorted, mass_sorted, eps2)
+        rel = (np.linalg.norm(accs - ref_w, axis=1) /
+               np.linalg.norm(ref_w, axis=1))
+        warp_err0 = max(warp_err0, float(rel.max()))
+
+        accs, lanes, ni, depth = traverse_warp(base, pos_sorted, mass_sorted,
+                                               children, com, size, n, 0.5,
+                                               eps2)
+        warp_depth = max(warp_depth, depth)
+        rel = (np.linalg.norm(accs - ref_w, axis=1) /
+               np.linalg.norm(ref_w, axis=1))
+        warp_errs.extend(rel.tolist())
+        warp_inters.append(ni)
+    assert warp_err0 < 1e-12, f"warp theta=0 disagrees: {warp_err0:.2e}"
+    med_w = float(np.median(warp_errs))
+    assert med_w < 0.05, f"warp theta=0.5 median error {med_w:.3f} out of band"
+    assert warp_depth < STACK_LIMIT
+    amp = float(np.mean(warp_inters)) / mean_i
+    print(f"warp walk: theta=0 exact ({warp_err0:.2e}); theta=0.5 median rel "
+          f"err {med_w:.3e} vs {med:.3e} per-thread, work amplification "
+          f"{amp:.2f}x, max stack depth {warp_depth}")
     print("lbvh logic: all checks passed")
 
 

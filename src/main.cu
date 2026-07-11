@@ -54,11 +54,18 @@ static Args parse_args(int argc, char** argv) {
       else if (v == "bh") a.params.force = ForceMethod::kBarnesHut;
       else die("--force must be naive or bh, got: " + v);
     }
+    else if (k == "--traverse") {
+      std::string v = next();
+      if (v == "thread") a.params.traverse = BhTraversal::kThread;
+      else if (v == "warp") a.params.traverse = BhTraversal::kWarp;
+      else die("--traverse must be thread or warp, got: " + v);
+    }
     else die("unknown argument: " + k);
   }
   if (a.ic_path.empty()) die("usage: galaxy_sim --ic ic.bin [--steps N] "
                              "[--dt f] [--eps f] [--dump-every N] [--out dir] "
-                             "[--force naive|bh] [--theta f] [--compare-forces]");
+                             "[--force naive|bh] [--theta f] "
+                             "[--traverse thread|warp] [--compare-forces]");
   return a;
 }
 
@@ -92,7 +99,9 @@ static int compare_forces(ParticleSystem& sys, const SimParams& base) {
     sum_rel += rel;
     if (rel > max_rel) max_rel = rel;
   }
-  std::printf("naive vs barnes-hut, theta=%.3g, n=%d\n", base.theta, n);
+  std::printf("naive vs barnes-hut, theta=%.3g, traverse=%s, n=%d\n",
+              base.theta,
+              base.traverse == BhTraversal::kWarp ? "warp" : "thread", n);
   std::printf("relative force error: max %.3e, mean %.3e\n", max_rel,
               sum_rel / n);
 
@@ -154,7 +163,9 @@ int main(int argc, char** argv) {
   Energy e0 = total_energy(sys, args.params);
   std::printf("n=%d dt=%.4g eps=%.4g steps=%d force=%s", n, args.params.dt,
               args.params.epsilon, args.steps, bh ? "barnes-hut" : "naive");
-  if (bh) std::printf(" theta=%.3g", args.params.theta);
+  if (bh)
+    std::printf(" theta=%.3g traverse=%s", args.params.theta,
+                args.params.traverse == BhTraversal::kWarp ? "warp" : "thread");
   std::printf("\n");
   std::printf("E0=%.6e KE0=%.6e PE0=%.6e\n", e0.total, e0.kinetic, e0.potential);
 

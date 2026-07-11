@@ -2,6 +2,7 @@
 #include <vector_types.h>
 
 enum class ForceMethod { kNaive, kBarnesHut };
+enum class BhTraversal { kThread, kWarp };
 
 // Simulation parameters shared across host and device code.
 struct SimParams {
@@ -10,6 +11,7 @@ struct SimParams {
   float G = 1.0f;   // gravitational constant in simulation units
   float theta = 0.5f;                        // BH opening angle; 0 = exact
   ForceMethod force = ForceMethod::kNaive;   // which force module runs
+  BhTraversal traverse = BhTraversal::kThread;   // BH tree-walk variant
 };
 
 // Particle state in structure-of-arrays form, resident on the device.

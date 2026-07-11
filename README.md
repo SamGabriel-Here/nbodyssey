@@ -29,12 +29,13 @@ separating cores, and settle into disrupted remnants.*
 
 ## Status
 
-Both force modules are complete and benchmarked on hardware: the naive kernel
-sustains ~4 TFLOP/s on a Tesla T4, and the Barnes-Hut tree code overtakes it
-from ~12k particles up to a **47x speedup at one million** — with the `theta=0`
-exactness gate passing on device first. See the
-[performance writeup](docs/PERFORMANCE.md). The one flagged optimization still
-open is a warp-cooperative tree traversal.
+Complete, including the optimization arc: naive kernel, Barnes-Hut tree code,
+and a warp-cooperative traversal, all benchmarked on hardware with the
+`theta=0` exactness gate passing on device first. The naive kernel sustains
+~4 TFLOP/s on a Tesla T4; the tree overtakes it from ~12k particles; the
+warp-cooperative walk then beats the per-thread walk by another 3.7x at one
+million particles — **176x over naive** — by trading ~2x more arithmetic for
+divergence-free execution. See the [performance writeup](docs/PERFORMANCE.md).
 
 Milestones:
 
@@ -48,8 +49,8 @@ Milestones:
 - [x] Barnes-Hut approximation validated on a CPU oracle
 - [x] GPU Barnes-Hut module (Karras LBVH + CUB radix sort), compiling in CI
 - [x] GPU session: `--compare-forces` gate passed, naive-vs-BH benchmarked (T4)
-- [x] Performance writeup comparing the two force modules
-- [ ] Warp-cooperative traversal (the measured next optimization)
+- [x] Performance writeup comparing the force modules
+- [x] Warp-cooperative traversal, measured 3.7x over per-thread at 1M
 
 ## Validation
 
@@ -98,19 +99,22 @@ for Barnes-Hut that includes rebuilding the tree every step:
 
 ![benchmark](docs/benchmark_t4.png)
 
-| n | naive | Barnes-Hut (theta = 0.5) | speedup |
-|---:|---:|---:|---:|
-| 12,000 | 0.95 ms | 0.53 ms | 1.8x |
-| 100,000 | 48.9 ms | 4.62 ms | 10.6x |
-| 1,000,000 | 5,269.9 ms | 111.6 ms | **47.2x** |
+| n | naive | BH per-thread | BH warp-cooperative | best speedup |
+|---:|---:|---:|---:|---:|
+| 12,000 | 0.85 ms | 0.51 ms | 0.61 ms | 1.7x |
+| 100,000 | 47.8 ms | 4.66 ms | 2.59 ms | 18.5x |
+| 1,000,000 | 5,324.2 ms | 112.1 ms | 30.3 ms | **176x** |
 
 The naive kernel is a real baseline — ~204 Ginteractions/s, about half the
 T4's fp32 peak — and still wins below ~8k particles, where tree overhead and
 traversal divergence outweigh asymptotics. From 12k up the tree pulls away.
-Tree construction is essentially free (~3 ms of the 112 ms at 1M); 97% of
-Barnes-Hut time is traversal, which is what the planned warp-cooperative
-version attacks. Full analysis, phase breakdowns, and the theta accuracy/cost
-dial: [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+Tree construction is essentially free (~3 ms at 1M); traversal is everything,
+and that is where the measured optimization landed: the warp-cooperative walk
+does ~2x more arithmetic per lane but walks one uniform, coalesced path per
+warp, and beats the divergent per-thread walk by 3.7x at a million particles.
+Full analysis, phase breakdowns, the theta accuracy/cost dial, and an honest
+energy-conservation caveat for the warp walk:
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Architecture
 

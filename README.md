@@ -31,9 +31,10 @@ separating cores, and settle into disrupted remnants.*
 
 The full naive pipeline is in place: generate two colliding disks, integrate on
 the GPU, dump frames, render. The physics is validated against a CPU reference
-integrator (see below), and the CUDA sources are compiled in CI. The Barnes-Hut
-approximation is validated on a CPU oracle; the GPU tree code (Karras LBVH) is
-in progress, and the performance writeup follows once it runs.
+integrator (see below). The Barnes-Hut approximation is validated on a CPU
+oracle, and the GPU tree code (Karras LBVH + CUB radix sort) is written and
+compiles in CI; running and benchmarking it against the naive kernel needs GPU
+hardware, which is the next step along with the performance writeup.
 
 Milestones:
 
@@ -45,7 +46,8 @@ Milestones:
 - [x] Frame dumps + offline matplotlib renderer
 - [x] CPU reference integrator + energy-conservation validation
 - [x] Barnes-Hut approximation validated on a CPU oracle
-- [ ] Barnes-Hut O(n log n) force module on the GPU (Karras LBVH)
+- [x] GPU Barnes-Hut module (Karras LBVH + CUB radix sort), compiling in CI
+- [ ] GPU session: `--compare-forces` validation and naive-vs-BH benchmarks
 - [ ] Performance writeup comparing the two force modules
 
 ## Validation
@@ -111,13 +113,19 @@ blow up the integrator. This is standard for collisionless disk simulations wher
 the particles model a smooth mass distribution rather than real point stars.
 
 **Force computation is a swappable module.** Everything above is stable across
-force implementations. The first implementation is the naive all-pairs kernel:
-each thread accumulates the force on one particle from all others, staging blocks
-of source particles through shared memory (tiling) to cut global-memory traffic.
-The second is Barnes-Hut, which builds an octree and approximates distant groups
-of particles by their center of mass, taking the asymptotic cost from O(n^2) to
-O(n log n). Both implement the same interface so the integrator does not know or
-care which is loaded.
+force implementations, and the module is picked at runtime with
+`--force naive|bh`. The naive all-pairs kernel gives each thread one target
+particle and streams blocks of source particles through shared memory (tiling)
+to cut global-memory traffic. The Barnes-Hut module rebuilds its tree on the
+device every step: a bounding-box reduction, 63-bit Morton codes, a CUB radix
+sort, and a Karras-style parallel radix-tree build, then a bottom-up
+centers-of-mass pass and a per-particle stack traversal that treats any node
+whose size-to-distance ratio is under the opening angle `--theta` as a single
+point mass — O(n^2) becomes O(n log n). Since both modules implement the same
+softened force law, `theta = 0` must reproduce the naive forces to float
+round-off, and `--compare-forces` runs both on the same state to check exactly
+that on device. Each tree phase is timed separately so the writeup can show
+where the time goes.
 
 **Offline visualization.** The simulator does not render. It writes particle
 positions per frame to disk in a simple binary format; a separate Python script
@@ -184,12 +192,20 @@ same IC file and flags work with either.
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 
+# naive all-pairs kernel
 ./build/galaxy_sim --ic ic.bin --steps 1500 --dump-every 5 --out frames/
+
+# Barnes-Hut tree code at the usual opening angle
+./build/galaxy_sim --ic ic.bin --steps 1500 --force bh --theta 0.5 --out frames/
+
+# check the two force modules against each other on the current GPU
+./build/galaxy_sim --ic ic.bin --compare-forces --theta 0
 ```
 
 Set `-DCMAKE_CUDA_ARCHITECTURES=<sm>` to match the target GPU (for example `86`
-for Ampere, `89` for Ada). The run reports force-kernel timing and throughput on
-exit and writes an energy log alongside the frames.
+for Ampere, `89` for Ada). The run reports force timing on exit — plus a
+per-phase breakdown of the tree pipeline under `--force bh` — and writes an
+energy log alongside the frames.
 
 ## License
 

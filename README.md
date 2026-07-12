@@ -17,15 +17,17 @@ asserted.
 
 ![galaxy collision](docs/collision.gif)
 
-*Two disk galaxies on a grazing encounter, colored by their galaxy of origin.
-12k particles integrated with leapfrog under softened gravity; the pass strips
-material into tidal tails and bridges before the cores fall back together.*
+*Two disk galaxies on a grazing encounter, colored by their galaxy of origin —
+100,000 particles computed on a Tesla T4 by the warp-cooperative Barnes-Hut
+module (2,000 leapfrog steps in 5.2 seconds of GPU time), then rendered
+offline from the frame dumps.*
 
 ![stages of the collision](docs/stages.png)
 
-*The same run frozen at five moments: the disks approach, interpenetrate at first
-contact, reach closest approach at pericenter, stretch a tidal bridge between the
-separating cores, and settle into disrupted remnants.*
+*The encounter frozen at five moments (a 12k-particle run of the same initial
+conditions on the CPU reference integrator): the disks approach, interpenetrate
+at first contact, reach closest approach at pericenter, stretch a tidal bridge
+between the separating cores, and settle into disrupted remnants.*
 
 ## Status
 
@@ -193,8 +195,10 @@ On-disk binary layouts (initial conditions and frame dumps) are documented in
 ## Quickstart (no GPU required)
 
 The CPU reference integrator runs the same physics in NumPy and writes the same
-on-disk formats, so the entire pipeline — including the animation above — can be
-reproduced without CUDA hardware.
+on-disk formats, so the entire pipeline can be exercised without CUDA hardware —
+the stages and energy figures above were produced this way. (The hero animation
+is the GPU's own output; on a CUDA machine the same commands with
+`./build/galaxy_sim` in place of the reference produce it.)
 
 ```
 # set up the Python tooling

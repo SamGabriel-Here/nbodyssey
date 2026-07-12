@@ -232,11 +232,14 @@ cmake --build build -j
 # naive all-pairs kernel
 ./build/galaxy_sim --ic ic.bin --steps 1500 --dump-every 5 --out frames/
 
-# Barnes-Hut tree code at the usual opening angle
-./build/galaxy_sim --ic ic.bin --steps 1500 --force bh --theta 0.5 --out frames/
+# Barnes-Hut at the usual opening angle, warp-cooperative walk (the fast path)
+./build/galaxy_sim --ic ic.bin --steps 1500 --force bh --traverse warp --theta 0.5 --out frames/
 
-# check the two force modules against each other on the current GPU
-./build/galaxy_sim --ic ic.bin --compare-forces --theta 0
+# per-thread tree walk, for the A/B the performance writeup measures
+./build/galaxy_sim --ic ic.bin --steps 1500 --force bh --traverse thread --theta 0.5 --out frames/
+
+# check the force modules against each other on the current GPU
+./build/galaxy_sim --ic ic.bin --compare-forces --traverse warp --theta 0
 ```
 
 Set `-DCMAKE_CUDA_ARCHITECTURES=<sm>` to match the target GPU (for example `86`

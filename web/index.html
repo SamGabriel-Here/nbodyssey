@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nbodyssey · live galaxy collision</title>
+  <meta name="description" content="Two disk galaxies collide in your browser: an all-pairs N-body simulation on your GPU via WebGPU, ported from a CUDA engine.">
+  <meta name="theme-color" content="#000000">
+  <meta property="og:title" content="nbodyssey · live galaxy collision">
+  <meta property="og:description" content="Two disk galaxies collide on your own GPU, in the browser, through WebGPU.">
+  <meta property="og:image" content="https://raw.githubusercontent.com/SamGabriel-Here/nbodyssey/main/docs/live.png">
+  <meta property="og:url" content="https://nbodyssey.vercel.app">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='12' cy='14' r='6' fill='%235ec8ff'/%3E%3Ccircle cx='21' cy='18' r='6' fill='%23ff9d3c' fill-opacity='.85'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="main.js"></script>
+</head>
+<body>
+  <noscript><p class="fallback">This simulation runs on your GPU through JavaScript and WebGPU. Turn JavaScript on to watch it.</p></noscript>
+  <canvas id="sky" aria-label="Live simulation of two colliding disk galaxies. Drag to orbit, scroll to zoom."></canvas>
+
+  <header class="mark">
+    <h1>n<em>body</em>ssey</h1>
+    <p>live · webgpu · all-pairs gravity</p>
+  </header>
+
+  <aside class="console" id="console">
+    <details id="console-details" open>
+      <summary>Observation run</summary>
+
+      <dl class="readouts">
+        <div><dt>time</dt><dd id="r-time">0.00</dd></div>
+        <div><dt>step</dt><dd id="r-step">0</dd></div>
+        <div><dt>bodies</dt><dd id="r-bodies">—</dd></div>
+        <div><dt title="relative drift of total energy since the start">ΔE / E</dt><dd id="r-energy">—</dd></div>
+        <div><dt title="pairwise force evaluations per second, measured in this tab">interactions / s</dt><dd id="r-rate">—</dd></div>
+      </dl>
+
+      <div class="transport">
+        <button id="play" type="button" aria-keyshortcuts="Space">Pause</button>
+        <button id="restart" type="button" aria-keyshortcuts="R">Restart</button>
+      </div>
+
+      <fieldset class="seg" id="bodies">
+        <legend>bodies</legend>
+        <label><input type="radio" name="n" value="8192"><span>8k</span></label>
+        <label><input type="radio" name="n" value="16384"><span>16k</span></label>
+        <label><input type="radio" name="n" value="32768"><span>32k</span></label>
+        <label><input type="radio" name="n" value="65536"><span>64k</span></label>
+      </fieldset>
+
+      <fieldset class="seg" id="speed">
+        <legend>steps per frame</legend>
+        <label><input type="radio" name="speed" value="1"><span>1</span></label>
+        <label><input type="radio" name="speed" value="2"><span>2</span></label>
+        <label><input type="radio" name="speed" value="4"><span>4</span></label>
+      </fieldset>
+
+      <label class="slider">
+        <span>impact parameter <output id="o-impact"></output></span>
+        <input id="impact" type="range" min="0" max="8" step="0.5">
+      </label>
+      <label class="slider">
+        <span>tilt of disk B <output id="o-inclination"></output></span>
+        <input id="inclination" type="range" min="0" max="180" step="5">
+      </label>
+      <label class="slider">
+        <span>approach speed <output id="o-approach"></output></span>
+        <input id="approach" type="range" min="0.1" max="1.2" step="0.05">
+      </label>
+
+      <fieldset class="seg" id="views">
+        <legend>view</legend>
+        <button type="button" data-view="face" aria-keyshortcuts="1">Face-on</button>
+        <button type="button" data-view="three" aria-keyshortcuts="2">Oblique</button>
+        <button type="button" data-view="edge" aria-keyshortcuts="3">Edge-on</button>
+      </fieldset>
+    </details>
+  </aside>
+
+  <div class="foot">
+    <section class="caption" aria-live="polite">
+      <p class="phase"><span id="phase-no">01</span> / <span id="phase-name">Approach</span></p>
+      <p id="phase-line" class="line">Two disk galaxies fall toward each other.</p>
+    </section>
+
+    <footer class="engine">
+      <p>Your GPU is running the all-pairs kernel. The <a href="https://github.com/SamGabriel-Here/nbodyssey">CUDA engine</a> adds a Barnes-Hut tree: <strong>1,000,000 bodies in 30 ms a step</strong> on a Tesla T4, <strong>176×</strong> faster than all-pairs.</p>
+    </footer>
+  </div>
+
+  <div class="fallback" id="fallback" hidden>
+    <img src="https://raw.githubusercontent.com/SamGabriel-Here/nbodyssey/main/docs/collision.gif" alt="Recorded run: two disk galaxies collide and throw out tidal tails">
+    <p>This browser can't run WebGPU, so here is a recorded run from the CUDA engine instead. Open the page in a recent Chrome, Edge or Safari to run it live on your own GPU.</p>
+  </div>
+</body>
+</html>

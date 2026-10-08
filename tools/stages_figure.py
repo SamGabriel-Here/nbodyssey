@@ -6,8 +6,9 @@ write) and lays them out as labeled panels narrating the encounter: approach,
 first contact, pericenter, tidal bridge, and separated remnants. Reproducible so
 the figure in docs/ is generated, not hand-assembled.
 
-Example:
-    python scripts/stages_figure.py --frames frames/ --out docs/stages.png
+Frames are 10 steps apart, so frame 134 is t = 13.4; dump them with
+    --steps 3000 --dump-every 10, then:
+    python tools/stages_figure.py --frames frames/ --out docs/stages.png
 """
 import argparse
 import os
@@ -28,9 +29,7 @@ cA, cB = "#5ec8ff", "#ff9d3c"   # galaxy A cool blue, galaxy B warm gold
 
 
 def read_frame(path):
-    with open(path, "rb") as f:
-        n = int(np.frombuffer(f.read(4), "<i4")[0])
-        return np.frombuffer(f.read(n * 16), "<f4").reshape(n, 4)
+    return np.fromfile(path, "<f4", offset=4).reshape(-1, 4)   # int32 n, n float4
 
 
 def main():
@@ -38,10 +37,10 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--frames", required=True, help="directory of frame_*.bin dumps")
     ap.add_argument("--out", default="docs/stages.png")
-    ap.add_argument("--extent", type=float, default=7.5, help="half-width of each panel")
+    ap.add_argument("--extent", type=float, default=11.0, help="half-width of each panel")
     ap.add_argument("--dt", type=float, default=0.01)
-    ap.add_argument("--dump-every", type=int, default=5)
-    ap.add_argument("--point-size", type=float, default=1.1)
+    ap.add_argument("--dump-every", type=int, default=10)
+    ap.add_argument("--point-size", type=float, default=0.9)
     ap.add_argument("--alpha", type=float, default=0.55)
     ap.add_argument("--dpi", type=int, default=150)
     args = ap.parse_args()

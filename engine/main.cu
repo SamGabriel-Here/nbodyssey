@@ -143,14 +143,19 @@ int main(int argc, char** argv) {
   std::vector<float4> h_pos, h_vel;
   int n = load_ic(args.ic_path, h_pos, h_vel);
 
+  // host -> device once; after this only positions come back, per frame
   ParticleSystem sys;
-  sys.allocate(n);
-  sys.upload(h_pos.data(), h_vel.data());
+  sys.n = n;
+  size_t bytes = n * sizeof(float4);
+  CUDA_CHECK(cudaMalloc(&sys.d_pos, bytes));
+  CUDA_CHECK(cudaMalloc(&sys.d_vel, bytes));
+  CUDA_CHECK(cudaMemcpy(sys.d_pos, h_pos.data(), bytes, cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(sys.d_vel, h_vel.data(), bytes, cudaMemcpyHostToDevice));
 
   if (args.compare) return compare_forces(sys, args.params);
 
   float4* d_acc = nullptr;
-  CUDA_CHECK(cudaMalloc(&d_acc, n * sizeof(float4)));
+  CUDA_CHECK(cudaMalloc(&d_acc, bytes));
 
   fs::create_directories(args.out_dir);
   if (fs::path(args.energy_log).has_parent_path())
@@ -180,13 +185,13 @@ int main(int argc, char** argv) {
 
   std::vector<float4> frame_buf(n);
   int frame = 0;
-  reset_force_timing();
   compute_forces(sys, d_acc, args.params);   // a(x0) for the first kick
 
   for (int step = 0; step < args.steps; ++step) {
     leapfrog_step(sys, d_acc, args.params);
     if (step % args.dump_every == 0) {
-      sys.download_positions(frame_buf.data());
+      CUDA_CHECK(cudaMemcpy(frame_buf.data(), sys.d_pos, bytes,
+                            cudaMemcpyDeviceToHost));
       dump_frame(frame_buf, args.out_dir, frame++);
       log_energy(step);
     }
@@ -210,6 +215,7 @@ int main(int argc, char** argv) {
 
   CUDA_CHECK(cudaFree(d_acc));
   bh_release();
-  sys.release();
+  CUDA_CHECK(cudaFree(sys.d_pos));
+  CUDA_CHECK(cudaFree(sys.d_vel));
   return 0;
 }

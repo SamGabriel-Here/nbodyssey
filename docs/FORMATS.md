@@ -6,7 +6,7 @@ host reads a file straight into the upload buffer with no repacking.
 
 ## Initial conditions (`ic.bin`)
 
-Produced by `scripts/generate_ic.py`, consumed by the simulator at startup.
+Produced by `tools/generate_ic.py`, consumed by the simulator at startup.
 
 ```
 int32   n                     particle count
@@ -19,7 +19,7 @@ disk as well as on the device).
 
 ## Frame dump (`frame_%05d.bin`)
 
-Written each dump interval by the simulator, consumed by `scripts/render.py`.
+Written each dump interval by the simulator, consumed by `tools/render.py`.
 Positions only — velocity is not needed to render.
 
 ```

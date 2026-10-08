@@ -14,22 +14,6 @@
 // The j == i term contributes zero (its separation vector is zero), and padded
 // lanes carry mass 0, so neither needs a branch in the inner loop.
 
-__device__ __forceinline__ float3 body_body(float4 bi, float4 bj, float3 ai,
-                                             float eps2) {
-  float3 r;
-  r.x = bj.x - bi.x;
-  r.y = bj.y - bi.y;
-  r.z = bj.z - bi.z;
-  float dist2 = r.x * r.x + r.y * r.y + r.z * r.z + eps2;
-  float inv = rsqrtf(dist2);
-  float inv3 = inv * inv * inv;
-  float s = bj.w * inv3;   // bj.w carries source mass
-  ai.x += r.x * s;
-  ai.y += r.y * s;
-  ai.z += r.z * s;
-  return ai;
-}
-
 __global__ void force_kernel(const float4* __restrict__ pos, float4* __restrict__ acc,
                              int n, float eps2, float G) {
   extern __shared__ float4 tile[];
@@ -87,4 +71,3 @@ void compute_forces(const ParticleSystem& sys, float4* d_acc, const SimParams& p
 
 double force_kernel_ms_total() { return g_ms; }
 long force_kernel_calls() { return g_calls; }
-void reset_force_timing() { g_ms = 0.0; g_calls = 0; }

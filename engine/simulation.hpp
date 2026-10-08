@@ -20,9 +20,4 @@ struct ParticleSystem {
   float4* d_pos = nullptr;   // device: position + mass
   float4* d_vel = nullptr;   // device: velocity
   int n = 0;                 // particle count
-
-  void allocate(int count);
-  void release();
-  void upload(const float4* h_pos, const float4* h_vel);   // host -> device, once
-  void download_positions(float4* h_pos) const;            // device -> host, per frame
 };

@@ -27,10 +27,8 @@ import numpy as np
 
 
 def read_ic(path):
-    with open(path, "rb") as f:
-        n = int(np.frombuffer(f.read(4), "<i4")[0])
-        pos = np.frombuffer(f.read(n * 16), "<f4").reshape(n, 4).copy()
-        vel = np.frombuffer(f.read(n * 16), "<f4").reshape(n, 4).copy()
+    """int32 n, then n float4 positions, then n float4 velocities."""
+    pos, vel = np.fromfile(path, "<f4", offset=4).reshape(2, -1, 4)
     return pos, vel
 
 

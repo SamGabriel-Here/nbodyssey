@@ -1,6 +1,6 @@
 # Naive all-pairs vs Barnes-Hut on the GPU
 
-Measurements from a Tesla T4 (sm_75, CUDA 12.8), driven by `scripts/gpu_bench.sh`.
+Measurements from a Tesla T4 (sm_75, CUDA 12.8), driven by `tools/gpu_bench.sh`.
 Timing is CUDA events around the whole force computation — for Barnes-Hut that
 includes rebuilding the tree from scratch every step, which is the fair unit to
 compare against the naive kernel. Values are averages over 11 calls, recorded in
@@ -106,6 +106,6 @@ accurate forces.
 ## Reproducing
 
 ```
-bash scripts/gpu_bench.sh          # any CUDA machine; a free Colab T4 works
-python scripts/plot_benchmarks.py  # regenerates docs/benchmark_t4.png
+bash tools/gpu_bench.sh          # any CUDA machine; a free Colab T4 works
+python tools/plot_benchmarks.py  # regenerates docs/benchmark_t4.png
 ```

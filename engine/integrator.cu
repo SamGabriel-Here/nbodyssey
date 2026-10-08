@@ -1,3 +1,4 @@
+#include <cub/cub.cuh>
 #include "integrator.cuh"
 #include "forces.cuh"
 #include "cuda_check.cuh"
@@ -37,15 +38,15 @@ void leapfrog_step(ParticleSystem& sys, float4* d_acc, const SimParams& p) {
 }
 
 // Per-particle kinetic and potential energy, tiled like the force kernel, then
-// block-reduced and atomically summed into a double accumulator.
+// block-reduced (CUB) and atomically summed into a double accumulator.
 //   accum[0] = KE = sum_i 1/2 m_i |v_i|^2
 //   accum[1] = PE = -1/2 G sum_{i!=j} m_i m_j / sqrt(r_ij^2 + eps^2)
 __global__ void energy_kernel(const float4* __restrict__ pos,
                               const float4* __restrict__ vel, int n, float eps2,
                               float G, double* accum) {
   extern __shared__ float4 tile[];
-  __shared__ double s_ke[kForceBlock];
-  __shared__ double s_pe[kForceBlock];
+  using Reduce = cub::BlockReduce<double, kForceBlock>;
+  __shared__ Reduce::TempStorage reduce_tmp;
 
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   float4 bi = (i < n) ? pos[i] : make_float4(0.f, 0.f, 0.f, 0.f);
@@ -73,20 +74,12 @@ __global__ void energy_kernel(const float4* __restrict__ pos,
     pe = -0.5 * (double)G * (double)m * ((double)phi - (double)self);
   }
 
-  int tid = threadIdx.x;
-  s_ke[tid] = ke;
-  s_pe[tid] = pe;
-  __syncthreads();
-  for (int s = blockDim.x / 2; s > 0; s >>= 1) {
-    if (tid < s) {
-      s_ke[tid] += s_ke[tid + s];
-      s_pe[tid] += s_pe[tid + s];
-    }
-    __syncthreads();
-  }
-  if (tid == 0) {
-    atomicAdd(&accum[0], s_ke[0]);
-    atomicAdd(&accum[1], s_pe[0]);
+  double ke_sum = Reduce(reduce_tmp).Sum(ke);
+  __syncthreads();   // reduce_tmp is reused
+  double pe_sum = Reduce(reduce_tmp).Sum(pe);
+  if (threadIdx.x == 0) {
+    atomicAdd(&accum[0], ke_sum);
+    atomicAdd(&accum[1], pe_sum);
   }
 }
 

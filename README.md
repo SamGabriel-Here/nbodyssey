@@ -2,102 +2,48 @@
 
 [![build](https://github.com/SamGabriel-Here/nbodyssey/actions/workflows/build.yml/badge.svg)](https://github.com/SamGabriel-Here/nbodyssey/actions/workflows/build.yml)
 ![CUDA C++](https://img.shields.io/badge/CUDA-C%2B%2B-76B900?logo=nvidia&logoColor=white)
-![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)
+![WebGPU](https://img.shields.io/badge/WebGPU-WGSL-005A9C)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A GPU-accelerated N-body simulator for galaxy collisions, written in CUDA C++.
-Two disk galaxies are seeded with realistic rotation curves, released toward each
-other, and integrated forward under mutual gravity. Particle state lives on the
-GPU for the whole run; frames are dumped to disk and rendered offline.
+Two disk galaxies collide under their own gravity, on a GPU, in two places: live
+in your browser through WebGPU, and at a million bodies through a CUDA engine
+with a Barnes-Hut tree.
 
-The point of the project is the GPU work: a naive all-pairs force kernel with
-shared-memory tiling first, then a Barnes-Hut tree code, with timing and energy
-diagnostics built in so the optimization story is measurable rather than
-asserted.
+**[Run it live → nbodyssey.vercel.app](https://nbodyssey.vercel.app)**
+
+[![the live observatory](docs/live.png)](https://nbodyssey.vercel.app)
+
+*The browser version mid-encounter: 16,384 bodies stepped by your own GPU, with
+the energy drift and interaction rate measured as it runs. Drag to orbit,
+scroll to zoom, and change the orbit with the sliders; the caption follows the
+encounter from approach through pericenter to the tidal bridge.*
+
+## Two engines, one physics
+
+| | browser (`web/`) | CUDA (`engine/`) |
+|---|---|---|
+| runs on | any WebGPU GPU: laptops, phones | NVIDIA GPUs (benchmarked on a Tesla T4) |
+| force | tiled all-pairs, O(n²) | tiled all-pairs, or a Barnes-Hut LBVH, O(n log n) |
+| scale | 8k to 64k bodies, live (16k at 60 fps on an M2) | up to 1,000,000 bodies, offline frames |
+| output | rendered from the GPU buffer, live | frame dumps, rendered offline |
+
+Both use the same softened force law, the same kick-drift-kick leapfrog, the
+same units and initial conditions, and the same energy diagnostic. The WGSL
+kernel is a line-for-line port of the CUDA one: each workgroup streams 256
+source bodies through workgroup memory, every thread reuses them, then the tile
+advances. On an Apple M2 it sustains about 65 billion interactions a second,
+and its energy drift over a full encounter (~10⁻⁴) matches the CUDA engine's.
 
 ![galaxy collision](docs/collision.gif)
 
-*Two disk galaxies on a grazing encounter, colored by their galaxy of origin —
-100,000 particles computed on a Tesla T4 by the warp-cooperative Barnes-Hut
-module (2,000 leapfrog steps in 5.2 seconds of GPU time), then rendered
-offline from the frame dumps.*
-
-![stages of the collision](docs/stages.png)
-
-*The encounter frozen at five moments (a 12k-particle run of the same initial
-conditions on the CPU reference integrator): the disks approach, interpenetrate
-at first contact, reach closest approach at pericenter, stretch a tidal bridge
-between the separating cores, and settle into disrupted remnants.*
-
-## Status
-
-Complete, including the optimization arc: naive kernel, Barnes-Hut tree code,
-and a warp-cooperative traversal, all benchmarked on hardware with the
-`theta=0` exactness gate passing on device first. The naive kernel sustains
-~4 TFLOP/s on a Tesla T4; the tree overtakes it from ~12k particles; the
-warp-cooperative walk then beats the per-thread walk by another 3.7x at one
-million particles — **176x over naive** — by trading ~2x more arithmetic for
-divergence-free execution. See the [performance writeup](docs/PERFORMANCE.md).
-
-Milestones:
-
-- [x] Repo, build system, architecture, benchmarking harness scaffold
-- [x] Initial-condition generator (two exponential disks)
-- [x] Naive O(n^2) force kernel with shared-memory tiling
-- [x] Leapfrog (kick-drift-kick) integrator
-- [x] CUDA-event kernel timing + energy-vs-time log
-- [x] Frame dumps + offline matplotlib renderer
-- [x] CPU reference integrator + energy-conservation validation
-- [x] Barnes-Hut approximation validated on a CPU oracle
-- [x] GPU Barnes-Hut module (Karras LBVH + CUB radix sort), compiling in CI
-- [x] GPU session: `--compare-forces` gate passed, naive-vs-BH benchmarked (T4)
-- [x] Performance writeup comparing the force modules
-- [x] Warp-cooperative traversal, measured 3.7x over per-thread at 1M
-
-## Validation
-
-Because the state is single precision, correctness is not obvious, so the physics
-is pinned two ways.
-
-A CPU reference integrator (`scripts/reference_nbody.py`) implements the same
-force law, kick-drift-kick scheme, and energy diagnostic in NumPy. Running a full
-two-galaxy collision and tracking total energy gives the plot below: kinetic
-energy peaks at pericenter as the disks fall together, the potential well deepens
-in step, and total energy stays flat. The relative energy error stays bounded
-within about 0.02% across the encounter and oscillates rather than drifting --
-the signature of a symplectic integrator.
-
-![energy conservation](docs/energy_conservation.png)
-
-The reference also doubles as a GPU-free way to exercise the whole pipeline: it
-writes frames and energy logs in the same on-disk formats the CUDA path uses, so
-the renderer and downstream tooling are validated end to end. The GPU kernels are
-written to mirror the reference and are compiled in CI (`nvcc` targets a device
-architecture without needing a physical GPU on the runner).
-
-The Barnes-Hut tree approximation is pinned the same way, ahead of the GPU port.
-A CPU oracle (`scripts/barnes_hut_reference.py`) builds the octree, computes the
-cell centers of mass, and evaluates the softened force with the opening-angle
-criterion, then checks it against the exact all-pairs force. At `theta = 0` no
-cell is ever accepted and the result matches the exact force to round-off
-(~1e-15), confirming the traversal and center-of-mass bookkeeping; as `theta`
-grows, the force error rises smoothly while the interactions per particle
-collapse from O(n) toward O(log n). At the usual `theta = 0.5` that is roughly a
-1% median force error for an ~18x cut in force evaluations.
-
-![Barnes-Hut accuracy and cost](docs/bh_accuracy.png)
-
-The GPU tree code itself is tested in CI, not just compiled: a line-for-line
-CPU mirror of its Morton encoding, Karras radix-tree build, centers-of-mass
-pass, and stack traversal (`scripts/lbvh_check.py`) runs on every push and
-asserts that the tree is well formed (including under duplicate keys), that
-`theta = 0` reproduces the exact force to round-off, and that the traversal
-stack stays far below the depth limit hard-coded in the kernels.
+*The CUDA engine's own run: 100,000 particles on a Tesla T4 with the
+warp-cooperative Barnes-Hut walk (2,000 leapfrog steps in 5.2 seconds of GPU
+time), rendered offline from the frame dumps.*
 
 ## Performance
 
-Measured on a Tesla T4, timing the full force computation with CUDA events —
-for Barnes-Hut that includes rebuilding the tree every step:
+Measured on a Tesla T4, timing the whole force computation with CUDA events.
+For Barnes-Hut that includes rebuilding the tree every step:
 
 ![benchmark](docs/benchmark_t4.png)
 
@@ -107,150 +53,139 @@ for Barnes-Hut that includes rebuilding the tree every step:
 | 100,000 | 47.8 ms | 4.66 ms | 2.59 ms | 18.5x |
 | 1,000,000 | 5,324.2 ms | 112.1 ms | 30.3 ms | **176x** |
 
-The naive kernel is a real baseline — ~204 Ginteractions/s, about half the
-T4's fp32 peak — and still wins below ~8k particles, where tree overhead and
-traversal divergence outweigh asymptotics. From 12k up the tree pulls away.
-Tree construction is essentially free (~3 ms at 1M); traversal is everything,
-and that is where the measured optimization landed: the warp-cooperative walk
-does ~2x more arithmetic per lane but walks one uniform, coalesced path per
-warp, and beats the divergent per-thread walk by 3.7x at a million particles.
-Full analysis, phase breakdowns, the theta accuracy/cost dial, and an honest
-energy-conservation caveat for the warp walk:
-[docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+The naive kernel is a real baseline: ~204 billion interactions a second, about
+half the T4's fp32 peak, and it still wins below ~8k particles, where tree
+overhead and divergence outweigh the asymptotics. From 12k up the tree pulls
+away. Building the tree costs ~3 ms at 1M; the traversal is everything, and
+that is where the optimization landed: the warp-cooperative walk does ~2x more
+arithmetic per lane, but each warp follows one uniform, coalesced path, and it
+beats the divergent per-thread walk by 3.7x at a million particles. Phase
+breakdowns, the theta accuracy/cost dial and an energy caveat for the warp walk
+are in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+
+## Validation
+
+Single precision makes correctness non-obvious, so the physics is pinned from
+several sides.
+
+- **A CPU reference integrator** (`tools/reference_nbody.py`) implements the
+  same force law, integrator and energy diagnostic in NumPy. Over a full
+  collision, total energy stays flat while kinetic and potential energy trade
+  places at pericenter, and the relative error stays bounded near 0.02%,
+  oscillating instead of drifting. That is the signature of a symplectic
+  integrator.
+
+  ![energy conservation](docs/energy_conservation.png)
+
+- **A CPU Barnes-Hut oracle** (`tools/barnes_hut_reference.py`) builds the
+  octree and checks the tree force against the exact one. At `theta = 0` they
+  agree to round-off (~1e-15); at the usual `theta = 0.5` the median force
+  error is ~1% for an ~18x cut in force evaluations.
+
+  ![Barnes-Hut accuracy and cost](docs/bh_accuracy.png)
+
+- **The GPU tree code is tested in CI, not just compiled.** A line-for-line CPU
+  mirror of its Morton encoding, Karras radix-tree build, centers-of-mass pass
+  and both traversals (`tools/lbvh_check.py`) runs on every push. It asserts
+  the tree is well formed under duplicate keys, that `theta = 0` reproduces the
+  exact force, and that the traversal stack stays far below its fixed depth.
+- **On device**, `--compare-forces` runs naive and Barnes-Hut on the same state.
+  At `theta = 0` they agreed to a mean relative difference of 1.7e-5 on the T4,
+  which is float32 round-off.
+
+![stages of the collision](docs/stages.png)
+
+*The encounter at five moments: the engine's 12k-particle initial conditions,
+stepped by the WebGPU kernel and drawn by `tools/stages_figure.py`.*
 
 ## Architecture
 
-The design is fixed up front so the force computation can be swapped without
-touching the rest of the code.
+**State lives on the GPU.** Initial conditions are uploaded once. The CUDA
+engine copies positions back only to write a frame; the browser never copies
+them back for drawing, because the renderer reads the same storage buffer the
+integrator writes. Four times a second, a diagnostics pass copies the per-body
+energies and positions back, and the CPU sums them into total energy and each
+galaxy's center of mass.
 
-**Data resident on the GPU.** The host builds the initial conditions, uploads
-them once, and thereafter only copies particle positions back when it is time to
-write a frame. Nothing about the integration touches host memory.
+**Structure of arrays, packed.** Position and mass travel together as one
+`float4` (`x, y, z, m`), velocity as another, so a warp's loads coalesce and the
+force loop gets mass with position in a single access.
 
-**Structure-of-arrays layout.** Positions and velocities are stored in separate
-arrays rather than an array of particle structs, so memory accesses across a warp
-are coalesced. Position and mass are packed together as a `float4` (`x, y, z, m`);
-velocity is a `float4` (`vx, vy, vz, unused`). Mass rides in the position array
-because the force kernel needs mass and position together and nothing else on the
-same access.
+**Leapfrog, single precision.** Kick-drift-kick is symplectic and
+time-reversible, so energy oscillates around a constant instead of drifting.
+That is what makes float32 defensible, and the energy log is there to prove it.
 
-**Single precision.** All particle state is `float`. Single precision is the
-right trade for throughput on the target hardware; the cost is energy drift,
-which is exactly what the energy diagnostic is there to catch.
+**Softened gravity.** A softening length `eps` is added in quadrature to every
+separation, so close encounters stay finite. The particles model a smooth
+stellar disk, not individual stars.
 
-**Leapfrog integrator.** Kick-drift-kick leapfrog, which is symplectic and
-time-reversible, so total energy oscillates around a constant rather than
-drifting secularly. This is what makes single precision defensible.
+**A swappable force module.** In the CUDA engine, `--force naive|bh` picks the
+force computation at runtime without touching the rest. The Barnes-Hut module
+rebuilds a Karras LBVH every step: bounding box, 63-bit Morton codes, a CUB
+radix sort, a parallel radix-tree build, a bottom-up centers-of-mass pass, then
+a stack traversal that treats any node under the opening angle `--theta` as a
+point mass. Each phase is timed separately.
 
-**Softened gravity.** A softening length `epsilon` is added in quadrature to the
-pairwise separation so that close encounters do not produce singular forces and
-blow up the integrator. This is standard for collisionless disk simulations where
-the particles model a smooth mass distribution rather than real point stars.
-
-**Force computation is a swappable module.** Everything above is stable across
-force implementations, and the module is picked at runtime with
-`--force naive|bh`. The naive all-pairs kernel gives each thread one target
-particle and streams blocks of source particles through shared memory (tiling)
-to cut global-memory traffic. The Barnes-Hut module rebuilds its tree on the
-device every step: a bounding-box reduction, 63-bit Morton codes, a CUB radix
-sort, and a Karras-style parallel radix-tree build, then a bottom-up
-centers-of-mass pass and a per-particle stack traversal that treats any node
-whose size-to-distance ratio is under the opening angle `--theta` as a single
-point mass — O(n^2) becomes O(n log n). Since both modules implement the same
-softened force law, `theta = 0` must reproduce the naive forces to float
-round-off, and `--compare-forces` runs both on the same state to check exactly
-that on device. Each tree phase is timed separately so the writeup can show
-where the time goes.
-
-**Offline visualization.** The simulator does not render. It writes particle
-positions per frame to disk in a simple binary format; a separate Python script
-turns those frames into images or an animation. Rendering is decoupled from the
-simulation so neither constrains the other.
-
-## Benchmarking
-
-Timing and correctness instrumentation are part of the simulator from the start,
-not bolted on later:
-
-- **Kernel timing** with CUDA events around the force kernel, reported per step
-  and aggregated, so the naive-vs-Barnes-Hut comparison is a measured speedup.
-- **Energy log** writing total kinetic + potential energy versus simulation time.
-  A correct symplectic integrator keeps this bounded; a bug shows up as drift or
-  a blowup.
-
-Logs land in `benchmarks/`.
+**Light, not dots.** The browser draws each body as a soft additive sprite into
+a half-float target and tone-maps the result, so dense cores saturate to
+white-hot instead of clipping and the faint tidal tails stay visible.
 
 ## Repository layout
 
 ```
-src/         CUDA kernels and host driver (forces, integrator, energy, main)
-scripts/     IC generator, CPU reference integrator, and renderers (Python)
-benchmarks/  timing and energy logs
-docs/        binary-format notes (FORMATS.md), figures, and the perf writeup
+engine/      CUDA engine: naive and Barnes-Hut force modules, integrator, energy, host driver
+web/         the live browser version: WGSL kernels, renderer, initial conditions, UI
+tools/       Python: IC generator, CPU reference integrator, Barnes-Hut oracle,
+             LBVH mirror, renderers and plots
+benchmarks/  T4 timing and energy logs
+docs/        performance writeup, binary formats, figures
 ```
 
-On-disk binary layouts (initial conditions and frame dumps) are documented in
-[docs/FORMATS.md](docs/FORMATS.md).
+## Running it
 
-## Quickstart (no GPU required)
+**In a browser.** The `web/` folder is static files with no build step:
 
-The CPU reference integrator runs the same physics in NumPy and writes the same
-on-disk formats, so the entire pipeline can be exercised without CUDA hardware —
-the stages and energy figures above were produced this way. (The hero animation
-is the GPU's own output; on a CUDA machine the same commands with
-`./build/galaxy_sim` in place of the reference produce it.)
-
+```bash
+python3 -m http.server 8000 -d web
 ```
-# set up the Python tooling
+
+Then open `http://localhost:8000` in Chrome, Edge or Safari 26. A run is
+encoded in the URL (`?n=32768&b=3&i=30&v=0.55`), so any setup can be shared.
+`node --test web/` checks the initial conditions.
+
+**Without a GPU.** The CPU reference runs the same physics in NumPy and writes
+the CUDA engine's on-disk formats, so the whole offline pipeline works anywhere.
+The energy figure above came from it.
+
+```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r scripts/requirements.txt
-
-# generate two colliding disk galaxies
-python scripts/generate_ic.py --particles 12000 --out ic.bin
-
-# integrate on the CPU reference (this is what produced the figures above)
-python scripts/reference_nbody.py --ic ic.bin --steps 1500 --dump-every 5 --out frames/
-
-# render the frames to a movie (pass a directory instead of an .mp4 to keep PNGs)
-python scripts/render.py --frames frames/ --out collision.mp4
-
-# plot energy conservation from the log the run wrote
-python scripts/plot_energy.py --log benchmarks/energy_reference.csv --out energy.png
+pip install -r tools/requirements.txt
+python tools/generate_ic.py --particles 12000 --out ic.bin
+python tools/reference_nbody.py --ic ic.bin --steps 1500 --dump-every 5 --out frames/
+python tools/render.py --frames frames/ --out collision.mp4
+python tools/plot_energy.py --log benchmarks/energy_reference.csv --out energy.png
 ```
 
-## Building the GPU version
+**On a CUDA machine.** The engine needs Linux, the CUDA Toolkit and CMake 3.20+.
+macOS has no CUDA, so it is developed there and built on a GPU host.
 
-The CUDA path targets a Linux machine with the CUDA Toolkit and a recent CMake.
-macOS has no CUDA support, so the code is developed on macOS but built and run on
-a GPU host. The command-line interface matches the reference integrator, so the
-same IC file and flags work with either.
-
-```
-cmake -B build -DCMAKE_BUILD_TYPE=Release
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=75
 cmake --build build -j
-
-# naive all-pairs kernel
 ./build/galaxy_sim --ic ic.bin --steps 1500 --dump-every 5 --out frames/
-
-# Barnes-Hut at the usual opening angle, warp-cooperative walk (the fast path)
 ./build/galaxy_sim --ic ic.bin --steps 1500 --force bh --traverse warp --theta 0.5 --out frames/
-
-# per-thread tree walk, for the A/B the performance writeup measures
-./build/galaxy_sim --ic ic.bin --steps 1500 --force bh --traverse thread --theta 0.5 --out frames/
-
-# check the force modules against each other on the current GPU
 ./build/galaxy_sim --ic ic.bin --compare-forces --traverse warp --theta 0
 ```
 
-Set `-DCMAKE_CUDA_ARCHITECTURES=<sm>` to match the target GPU (for example `86`
-for Ampere, `89` for Ada). The run reports force timing on exit — plus a
-per-phase breakdown of the tree pipeline under `--force bh` — and writes an
-energy log alongside the frames.
+Set `CMAKE_CUDA_ARCHITECTURES` to match the GPU (`75` Turing, `86` Ampere, `89`
+Ada). Each run reports force timing on exit, adds a per-phase breakdown under
+`--force bh`, and writes an energy log next to the frames. The whole benchmark
+session is scripted: `bash tools/gpu_bench.sh` on any CUDA machine (a free
+Colab T4 works) builds, runs the `theta = 0` gate for both tree walks, sweeps
+the force modules across particle counts, and writes `benchmarks/`.
 
-The entire benchmark session is scripted: `bash scripts/gpu_bench.sh` on any
-CUDA machine (a Colab T4 works) builds, runs the `--compare-forces` gate, sweeps
-naive vs Barnes-Hut across particle counts, and leaves the results in
-`benchmarks/gpu_results.csv`.
+Binary layouts for initial conditions and frame dumps are in
+[docs/FORMATS.md](docs/FORMATS.md).
 
 ## License
 

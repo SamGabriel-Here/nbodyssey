@@ -34,7 +34,7 @@ run_case() {  # n label theta steps [extra args...]
 
 # --- correctness gates: theta = 0 must reproduce the naive forces, for both
 # --- tree walks -------------------------------------------------------------
-python3 scripts/generate_ic.py --particles 20000 --out "$scratch/ic_gate.bin"
+python3 tools/generate_ic.py --particles 20000 --out "$scratch/ic_gate.bin"
 for tv in thread warp; do
   ./build/galaxy_sim --ic "$scratch/ic_gate.bin" --compare-forces --theta 0 \
       --traverse "$tv" | tee "benchmarks/logs/gate_theta0_$tv.txt"
@@ -49,7 +49,7 @@ done
 
 # --- benchmark sweep: naive vs both tree walks at theta = 0.5 ---------------
 for n in 4096 12000 50000 100000 200000 400000 1000000; do
-  python3 scripts/generate_ic.py --particles "$n" --out "$scratch/ic_$n.bin"
+  python3 tools/generate_ic.py --particles "$n" --out "$scratch/ic_$n.bin"
   run_case "$n" naive     0.5 10 --force naive
   run_case "$n" bh-thread 0.5 10 --force bh --traverse thread
   run_case "$n" bh-warp   0.5 10 --force bh --traverse warp
@@ -62,13 +62,15 @@ for th in 0.3 0.8; do
 done
 
 # --- energy conservation on the GPU -----------------------------------------
-python3 scripts/generate_ic.py --particles 12000 --out "$scratch/ic_e.bin"
+python3 tools/generate_ic.py --particles 12000 --out "$scratch/ic_e.bin"
 ./build/galaxy_sim --ic "$scratch/ic_e.bin" --steps 1500 --dump-every 100 \
     --out "$scratch/frames_e" --energy-log benchmarks/energy_gpu_naive.csv \
     | tee benchmarks/logs/energy_naive.txt
-./build/galaxy_sim --ic "$scratch/ic_e.bin" --steps 1500 --dump-every 100 \
-    --out "$scratch/frames_e" --energy-log benchmarks/energy_gpu_bh.csv \
-    --force bh --theta 0.5 --traverse warp | tee benchmarks/logs/energy_bh.txt
+for tv in thread warp; do
+  ./build/galaxy_sim --ic "$scratch/ic_e.bin" --steps 1500 --dump-every 100 \
+      --out "$scratch/frames_e" --energy-log "benchmarks/energy_gpu_bh_$tv.csv" \
+      --force bh --theta 0.5 --traverse "$tv" | tee "benchmarks/logs/energy_bh_$tv.txt"
+done
 
 rm -rf "$scratch"
 echo
@@ -77,4 +79,6 @@ cat "$csv"
 echo
 echo "final energy errors:"
 tail -1 benchmarks/energy_gpu_naive.csv | awk -F, '{print "  naive: " $6}'
-tail -1 benchmarks/energy_gpu_bh.csv | awk -F, '{print "  bh:    " $6}'
+for tv in thread warp; do
+  tail -1 "benchmarks/energy_gpu_bh_$tv.csv" | awk -F, -v t="$tv" '{print "  bh-" t ": " $6}'
+done

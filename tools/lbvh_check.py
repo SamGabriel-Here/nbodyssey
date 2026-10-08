@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Logic test for the GPU Barnes-Hut tree, runnable without a GPU.
 
-Mirrors src/forces_bh.cu step for step -- the same 21-bit Morton spreading, the
+Mirrors engine/forces_bh.cu step for step -- the same 21-bit Morton spreading, the
 same Karras delta/range/split arithmetic including the sorted-index tie-break
 for duplicate keys, the same bottom-up center-of-mass and AABB combination, and
 the same stack traversal with the s/d < theta acceptance test on the longest

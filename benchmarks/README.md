@@ -1,8 +1,8 @@
 # Benchmarks
 
-Measured on a Tesla T4 (Colab, CUDA 12.8) by `scripts/gpu_bench.sh`; the
+Measured on a Tesla T4 (Colab, CUDA 12.8) by `tools/gpu_bench.sh`; the
 figures in `docs/` are generated from these files by
-`scripts/plot_benchmarks.py`.
+`tools/plot_benchmarks.py`.
 
 - `gpu_results.csv` — force-computation ms/step across particle counts for the
   naive kernel and both Barnes-Hut tree walks (per-thread and warp-cooperative)

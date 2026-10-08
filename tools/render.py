@@ -6,8 +6,8 @@ integrator) and produces a scatter plot per frame, projected onto a chosen
 plane, then optionally encodes them into a movie with ffmpeg. Kept separate from
 the simulation so rendering choices never constrain the physics.
 
-The two galaxies are colored by particle index (the first `--split` particles
-are galaxy A, the rest galaxy B), which lets you watch material get stripped,
+The two galaxies are colored by particle index (the IC generator writes galaxy
+A's particles first, then galaxy B's), which lets you watch material get stripped,
 flung into tidal tails, and mixed during the merger.
 """
 import argparse
@@ -25,10 +25,7 @@ AXES = {"x": 0, "y": 1, "z": 2}
 
 
 def read_frame(path):
-    with open(path, "rb") as f:
-        n = int(np.frombuffer(f.read(4), "<i4")[0])
-        pos = np.frombuffer(f.read(n * 16), "<f4").reshape(n, 4)
-    return pos
+    return np.fromfile(path, "<f4", offset=4).reshape(-1, 4)   # int32 n, n float4
 
 
 def auto_extent(frames, ai, bi, percentile):
@@ -50,8 +47,6 @@ def main():
     ap.add_argument("--frames", required=True, help="directory of frame_*.bin dumps")
     ap.add_argument("--out", default="collision.mp4",
                     help="output .mp4, or a directory to leave PNGs in")
-    ap.add_argument("--split", type=int, default=-1,
-                    help="index splitting galaxy A from B (default: half)")
     ap.add_argument("--projection", default="xy", choices=["xy", "xz", "yz"])
     ap.add_argument("--extent", type=float, default=0.0,
                     help="half-width of the view; 0 auto-fits from the frames")
@@ -71,7 +66,7 @@ def main():
     extent = args.extent or auto_extent(frames, ai, bi, args.percentile)
 
     n0 = read_frame(frames[0]).shape[0]
-    split = args.split if args.split >= 0 else n0 // 2
+    split = n0 // 2
     cA, cB = "#5ec8ff", "#ff9d3c"   # cool blue, warm gold on black
 
     to_dir = not args.out.endswith(".mp4")

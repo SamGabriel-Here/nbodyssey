@@ -14,7 +14,7 @@ import numpy as np
 
 
 def build_disk(n, m_total, scale_radius, center, bulk_velocity,
-               inclination, spin, eps, rng, r_max_factor=4.0):
+               inclination, spin, eps, rng):
     """One exponential disk of `n` particles.
 
     Radii are drawn from the exponential-disk radial profile p(r) ~ r exp(-r/Rd),
@@ -28,7 +28,7 @@ def build_disk(n, m_total, scale_radius, center, bulk_velocity,
     # radial samples from the exponential disk, truncated at a few scale lengths.
     # Resample the tail rather than clipping, which would pile particles into a
     # ring at exactly r_max.
-    r_max = r_max_factor * Rd
+    r_max = 4.0 * Rd
     r = rng.gamma(shape=2.0, scale=Rd, size=n)
     over = r > r_max
     while np.any(over):
@@ -60,11 +60,10 @@ def build_disk(n, m_total, scale_radius, center, bulk_velocity,
     vel = np.stack([vx, vy, vz], axis=1)
 
     # tilt the disk out of the xy-plane (rotation about the x-axis)
-    if inclination != 0.0:
-        c, s = np.cos(inclination), np.sin(inclination)
-        rot = np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
-        pos = pos @ rot.T
-        vel = vel @ rot.T
+    c, s = np.cos(inclination), np.sin(inclination)
+    rot = np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
+    pos = pos @ rot.T
+    vel = vel @ rot.T
 
     pos += np.asarray(center)
     vel += np.asarray(bulk_velocity)

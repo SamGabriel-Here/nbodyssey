@@ -51,10 +51,11 @@ const tracker = () => ({ phase: 0, minSep: Infinity, maxSep: 0, tPeri: 0 });
 
 function advancePhase(s, sep, t) {
   switch (s.phase) {
-    case 0: if (sep < 8) s.phase = 1; break;   // two disks of radius ~4 touch
+    case 0:   // two disks of radius ~4 touch at sep 8; a wide flyby never does
     case 1:
       s.minSep = Math.min(s.minSep, sep);
       if (sep > s.minSep + 0.05) { s.tPeri = t; s.phase = 2; }
+      else if (s.phase === 0 && sep < 8) s.phase = 1;
       break;
     case 2: if (t - s.tPeri > 1.5) s.phase = 3; break;
     case 3:
@@ -168,7 +169,8 @@ async function main() {
   };
   const sim = await createSim(canvas).catch(() => null);
   if (!sim) return fallback();
-  sim.lost.then(fallback);   // a GPU reset or driver crash ends the live run
+  let alive = true;
+  sim.lost.then(() => { alive = false; fallback(); });   // a GPU reset or driver crash ends the run
   if (matchMedia("(max-width: 720px)").matches) $("console-details").open = false;
 
   let run;   // everything that resets with a restart
@@ -201,6 +203,7 @@ async function main() {
   for (const key of ["impact", "inclination", "approach"]) {
     const input = $(key), out = $(`o-${key}`);
     input.value = settings[key];
+    settings[key] = Number(input.value);   // the browser snaps to the slider's step
     out.textContent = fmt[key](settings[key]);
     input.addEventListener("input", () => { out.textContent = fmt[key](Number(input.value)); });
     input.addEventListener("change", () => { settings[key] = Number(input.value); restart(); });
@@ -216,7 +219,7 @@ async function main() {
   setView("three");
 
   addEventListener("keydown", (e) => {
-    if (e.target.closest?.("input, button, summary")) return;
+    if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.("input, button, summary")) return;
     if (e.code === "Space") { e.preventDefault(); setPlaying(!playing); }
     else if (e.key === "r") restart();
     else if (["1", "2", "3"].includes(e.key)) setView(["face", "three", "edge"][e.key - 1]);
@@ -236,6 +239,7 @@ async function main() {
 
   let lastSample = 0, last = performance.now(), rateSteps = 0, rateStart = last;
   function frame(now) {
+    if (!alive) return;
     const dtWall = Math.min(0.1, (now - last) / 1000);
     last = now;
     // ease toward a chosen view; otherwise drift slowly while nobody is driving
@@ -244,12 +248,13 @@ async function main() {
     if (!camera.manualZoom) camera.dist += (camera.framing - camera.dist) * Math.min(1, dtWall * 0.8);
 
     const steps = playing ? speed : 0;
+    const step = run.step;   // the state the diagnostics will see
     const pending = sim.frame({
       steps,
       viewProj: viewProj(canvas.width / canvas.height),
-      pixelSize: 2.6 * devicePixelRatio,
+      pixelSize: 2.6 * canvas.width / canvas.clientWidth,   // ~1.3 css px
       gain: 0.5 * Math.pow(16384 / run.n, 0.8),   // same total light at any n
-      sample: run.needSample || now - lastSample > 250,
+      sample: run.needSample || now - lastSample > 250 * Math.max(1, run.n / 16384),
     });
     run.step += steps;
     rateSteps += steps;
@@ -257,7 +262,7 @@ async function main() {
     if (pending) {
       lastSample = now;
       run.needSample = false;
-      const r = run, step = r.step;
+      const r = run;
       pending.then(({ energy, com }) => {
         if (r !== run) return;   // restarted meanwhile
         r.e0 ??= energy;

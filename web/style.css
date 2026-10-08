@@ -212,12 +212,10 @@ input[type="range"] {
 .fallback img { max-width: min(560px, 100%); margin: 0 auto; border-radius: 10px; }
 .fallback p { max-width: 52ch; margin: 0 auto; color: var(--dim); }
 
-/* --- small screens: console becomes a bottom sheet ---------------------- */
+/* --- small screens: console spans the width under the wordmark ---------- */
 
 @media (max-width: 720px) {
   .console {
-    top: auto;
-    bottom: auto;
     top: calc(var(--gutter) + 82px);
     left: var(--gutter);
     right: var(--gutter);

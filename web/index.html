@@ -6,6 +6,11 @@
   <title>nbodyssey · live galaxy collision</title>
   <meta name="description" content="Two disk galaxies collide in your browser: an all-pairs N-body simulation on your GPU via WebGPU, ported from a CUDA engine.">
   <meta name="theme-color" content="#000000">
+  <meta property="og:title" content="nbodyssey · live galaxy collision">
+  <meta property="og:description" content="Two disk galaxies collide on your own GPU, in the browser, through WebGPU.">
+  <meta property="og:image" content="https://raw.githubusercontent.com/SamGabriel-Here/nbodyssey/main/docs/live.png">
+  <meta property="og:url" content="https://nbodyssey.vercel.app">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='12' cy='14' r='6' fill='%235ec8ff'/%3E%3Ccircle cx='21' cy='18' r='6' fill='%23ff9d3c' fill-opacity='.85'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,6 +19,7 @@
   <script type="module" src="main.js"></script>
 </head>
 <body>
+  <noscript><p class="fallback">This simulation runs on your GPU through JavaScript and WebGPU. Turn JavaScript on to watch it.</p></noscript>
   <canvas id="sky" aria-label="Live simulation of two colliding disk galaxies. Drag to orbit, scroll to zoom."></canvas>
 
   <header class="mark">
@@ -77,14 +83,13 @@
 
   <div class="foot">
     <section class="caption" aria-live="polite">
-    <p class="phase"><span id="phase-no">01</span> / <span id="phase-name">Approach</span></p>
-    <p id="phase-line" class="line">Two disk galaxies fall toward each other.</p>
-  </section>
+      <p class="phase"><span id="phase-no">01</span> / <span id="phase-name">Approach</span></p>
+      <p id="phase-line" class="line">Two disk galaxies fall toward each other.</p>
+    </section>
 
-
-  <footer class="engine">
-    <p>Your GPU is running the all-pairs kernel. The <a href="https://github.com/SamGabriel-Here/nbodyssey">CUDA engine</a> adds a Barnes-Hut tree: <strong>1,000,000 bodies in 30 ms a step</strong> on a Tesla T4, <strong>176×</strong> faster than all-pairs.</p>
-  </footer>
+    <footer class="engine">
+      <p>Your GPU is running the all-pairs kernel. The <a href="https://github.com/SamGabriel-Here/nbodyssey">CUDA engine</a> adds a Barnes-Hut tree: <strong>1,000,000 bodies in 30 ms a step</strong> on a Tesla T4, <strong>176×</strong> faster than all-pairs.</p>
+    </footer>
   </div>
 
   <div class="fallback" id="fallback" hidden>

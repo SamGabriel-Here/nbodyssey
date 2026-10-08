@@ -1,0 +1,3 @@
+# the static site is web/; keep its test harness off the CDN
+web/ic.test.mjs
+web/package.json

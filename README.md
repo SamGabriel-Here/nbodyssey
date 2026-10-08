@@ -24,7 +24,7 @@ encounter from approach through pericenter to the tidal bridge.*
 |---|---|---|
 | runs on | any WebGPU GPU: laptops, phones | NVIDIA GPUs (benchmarked on a Tesla T4) |
 | force | tiled all-pairs, O(n²) | tiled all-pairs, or a Barnes-Hut LBVH, O(n log n) |
-| scale | 8k to 64k bodies, live at 60 fps | up to 1,000,000 bodies, offline frames |
+| scale | 8k to 64k bodies, live (16k at 60 fps on an M2) | up to 1,000,000 bodies, offline frames |
 | output | rendered from the GPU buffer, live | frame dumps, rendered offline |
 
 Both use the same softened force law, the same kick-drift-kick leapfrog, the
@@ -95,7 +95,8 @@ several sides.
 
 ![stages of the collision](docs/stages.png)
 
-*The encounter at five moments, from a 12k-particle CPU reference run.*
+*The encounter at five moments: the engine's 12k-particle initial conditions,
+stepped by the WebGPU kernel and drawn by `tools/stages_figure.py`.*
 
 ## Architecture
 
@@ -154,7 +155,7 @@ encoded in the URL (`?n=32768&b=3&i=30&v=0.55`), so any setup can be shared.
 
 **Without a GPU.** The CPU reference runs the same physics in NumPy and writes
 the CUDA engine's on-disk formats, so the whole offline pipeline works anywhere.
-The stage and energy figures above came from it.
+The energy figure above came from it.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate

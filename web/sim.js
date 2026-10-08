@@ -219,12 +219,21 @@ export async function createSim(canvas) {
       entries: [{ binding: 0, resource: hdr.createView() }] });
   }
 
-  // Advance `steps` leapfrog steps (each dispatch sees the previous one's
-  // writes), render, and when asked queue a diagnostics readback -- energies
-  // plus positions for tracking the two galaxies. Returns that readback's
-  // promise, or null.
+  // When asked, queue a diagnostics readback of the current state (energies
+  // plus positions, for tracking the two galaxies); then advance `steps`
+  // leapfrog steps (each dispatch sees the previous one's writes) and render.
+  // Returns the readback's promise, or null.
   function frame({ steps, viewProj, pixelSize, gain, sample }) {
     const enc = device.createCommandEncoder();
+    let staging = null;   // diagnostics see the state before this frame's steps
+    if (sample && !readback) {
+      const p = enc.beginComputePass();
+      dispatch(p, "diagnostics");
+      p.end();
+      staging = device.createBuffer({ size: 24 * n, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+      enc.copyBufferToBuffer(buf.energy, 0, staging, 0, 8 * n);
+      enc.copyBufferToBuffer(buf.pos, 0, staging, 8 * n, 16 * n);
+    }
     if (steps) {
       const pass = enc.beginComputePass();
       for (let s = 0; s < steps; s++) {
@@ -254,15 +263,6 @@ export async function createSim(canvas) {
     pass.draw(3);
     pass.end();
 
-    let staging = null;
-    if (sample && !readback) {
-      const p = enc.beginComputePass();
-      dispatch(p, "diagnostics");
-      p.end();
-      staging = device.createBuffer({ size: 24 * n, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-      enc.copyBufferToBuffer(buf.energy, 0, staging, 0, 8 * n);
-      enc.copyBufferToBuffer(buf.pos, 0, staging, 8 * n, 16 * n);
-    }
     device.queue.submit([enc.finish()]);
     if (!staging) return null;
 

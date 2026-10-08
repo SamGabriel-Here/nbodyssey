@@ -50,6 +50,13 @@ jobs:
       - name: Barnes-Hut tree logic (CPU mirror of forces_bh.cu)
         run: python tools/lbvh_check.py
 
+      - name: Energy conservation of the reference integrator
+        run: |
+          python tools/generate_ic.py --particles 1024 --out "$RUNNER_TEMP/ic.bin"
+          python tools/reference_nbody.py --ic "$RUNNER_TEMP/ic.bin" --steps 300 \
+              --dump-every 1000 --out "$RUNNER_TEMP/frames" --energy-log "$RUNNER_TEMP/e.csv"
+          python -c "import numpy as np, sys; e = np.genfromtxt(sys.argv[1], delimiter=',', names=True); m = np.abs(e['rel_error']).max(); print(f'max |dE/E| = {m:.2e}'); assert m < 1e-3" "$RUNNER_TEMP/e.csv"
+
   web:
     runs-on: ubuntu-latest
     steps:

@@ -1,5 +1,6 @@
 # nbodyssey
 
+[![live](https://img.shields.io/badge/live-nbodyssey.vercel.app-000?logo=vercel)](https://nbodyssey.vercel.app)
 [![build](https://github.com/SamGabriel-Here/nbodyssey/actions/workflows/build.yml/badge.svg)](https://github.com/SamGabriel-Here/nbodyssey/actions/workflows/build.yml)
 ![CUDA C++](https://img.shields.io/badge/CUDA-C%2B%2B-76B900?logo=nvidia&logoColor=white)
 ![WebGPU](https://img.shields.io/badge/WebGPU-WGSL-005A9C)
@@ -84,11 +85,13 @@ several sides.
 
   ![Barnes-Hut accuracy and cost](docs/bh_accuracy.png)
 
-- **The GPU tree code is tested in CI, not just compiled.** A line-for-line CPU
-  mirror of its Morton encoding, Karras radix-tree build, centers-of-mass pass
-  and both traversals (`tools/lbvh_check.py`) runs on every push. It asserts
-  the tree is well formed under duplicate keys, that `theta = 0` reproduces the
-  exact force, and that the traversal stack stays far below its fixed depth.
+- **CI checks every push, without a GPU.** The CUDA engine is compiled with
+  `nvcc` for a T4 target. A line-for-line CPU mirror of the tree code's Morton
+  encoding, Karras radix-tree build, centers-of-mass pass and both traversals
+  (`tools/lbvh_check.py`) asserts the tree is well formed under duplicate keys,
+  that `theta = 0` reproduces the exact force, and that the traversal stack
+  stays far below its fixed depth. A short reference run must conserve energy
+  to 1e-3, and the browser version's initial conditions are tested in Node.
 - **On device**, `--compare-forces` runs naive and Barnes-Hut on the same state.
   At `theta = 0` they agreed to a mean relative difference of 1.7e-5 on the T4,
   which is float32 round-off.

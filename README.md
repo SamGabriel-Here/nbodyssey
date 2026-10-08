@@ -102,8 +102,9 @@ several sides.
 **State lives on the GPU.** Initial conditions are uploaded once. The CUDA
 engine copies positions back only to write a frame; the browser never copies
 them back for drawing, because the renderer reads the same storage buffer the
-integrator writes, and only a small diagnostics readback (energy and each
-galaxy's center of mass) comes back four times a second.
+integrator writes. Four times a second, a diagnostics pass copies the per-body
+energies and positions back, and the CPU sums them into total energy and each
+galaxy's center of mass.
 
 **Structure of arrays, packed.** Position and mass travel together as one
 `float4` (`x, y, z, m`), velocity as another, so a warp's loads coalesce and the

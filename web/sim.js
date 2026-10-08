@@ -134,6 +134,7 @@ export async function createSim(canvas) {
   const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
   if (!adapter) return null;
   const device = await adapter.requestDevice();
+  device.addEventListener("uncapturederror", (e) => console.error("WebGPU:", e.error.message));
   const ctx = canvas.getContext("webgpu");
   const format = navigator.gpu.getPreferredCanvasFormat();
   ctx.configure({ device, format, alphaMode: "opaque" });
@@ -276,7 +277,7 @@ export async function createSim(canvas) {
     return mine;
   }
 
-  return { load, frame, adapter };
+  return { load, frame, lost: device.lost };
 }
 
 // Total energy (summed in double) and each galaxy's center of mass.

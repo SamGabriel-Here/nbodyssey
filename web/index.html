@@ -21,12 +21,6 @@
     <p>live · webgpu · all-pairs gravity</p>
   </header>
 
-  <div class="foot">
-  <section class="caption" aria-live="polite">
-    <p class="phase"><span id="phase-no">01</span> / <span id="phase-name">Approach</span></p>
-    <p id="phase-line" class="line">Two disk galaxies fall toward each other.</p>
-  </section>
-
   <aside class="console" id="console">
     <details id="console-details" open>
       <summary>Observation run</summary>
@@ -80,6 +74,13 @@
       </fieldset>
     </details>
   </aside>
+
+  <div class="foot">
+    <section class="caption" aria-live="polite">
+    <p class="phase"><span id="phase-no">01</span> / <span id="phase-name">Approach</span></p>
+    <p id="phase-line" class="line">Two disk galaxies fall toward each other.</p>
+  </section>
+
 
   <footer class="engine">
     <p>Your GPU is running the all-pairs kernel. The <a href="https://github.com/SamGabriel-Here/nbodyssey">CUDA engine</a> adds a Barnes-Hut tree: <strong>1,000,000 bodies in 30 ms a step</strong> on a Tesla T4, <strong>176×</strong> faster than all-pairs.</p>

@@ -162,12 +162,13 @@ const sci = (x) => {
 // --- main ------------------------------------------------------------------
 
 async function main() {
-  const sim = await createSim(canvas).catch(() => null);
-  if (!sim) {
+  const fallback = () => {
     $("fallback").hidden = false;
     for (const el of [$("console"), canvas, document.querySelector(".caption")]) el.hidden = true;
-    return;
-  }
+  };
+  const sim = await createSim(canvas).catch(() => null);
+  if (!sim) return fallback();
+  sim.lost.then(fallback);   // a GPU reset or driver crash ends the live run
   if (matchMedia("(max-width: 720px)").matches) $("console-details").open = false;
 
   let run;   // everything that resets with a restart
@@ -222,10 +223,13 @@ async function main() {
   });
   bindOrbit();
 
-  new ResizeObserver(([entry]) => {   // render at the device's own pixels
+  new ResizeObserver(([entry]) => {   // device pixels, scaled down together past 4096
     const box = entry.devicePixelContentBoxSize?.[0];
-    canvas.width = Math.min(box ? box.inlineSize : Math.round(entry.contentRect.width * devicePixelRatio), 4096);
-    canvas.height = Math.min(box ? box.blockSize : Math.round(entry.contentRect.height * devicePixelRatio), 4096);
+    const w = box ? box.inlineSize : Math.round(entry.contentRect.width * devicePixelRatio);
+    const h = box ? box.blockSize : Math.round(entry.contentRect.height * devicePixelRatio);
+    const k = Math.min(1, 4096 / Math.max(w, h, 1));
+    canvas.width = Math.max(1, Math.round(w * k));
+    canvas.height = Math.max(1, Math.round(h * k));
   }).observe(canvas);
 
   restart();

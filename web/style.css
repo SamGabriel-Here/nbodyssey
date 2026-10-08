@@ -1,0 +1,235 @@
+:root {
+  --ink: #f2efe8;
+  --dim: #9c988f;
+  --faint: #5d5a55;
+  --rule: rgb(242 239 232 / 0.14);
+  --glass: rgb(12 12 14 / 0.62);
+  --a: #5ec8ff;
+  --b: #ff9d3c;
+  --serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --gutter: clamp(16px, 3vw, 36px);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #000;
+  color: var(--ink);
+  font: 13px/1.5 var(--mono);
+  overflow: hidden;
+}
+
+#sky {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+#sky:active { cursor: grabbing; }
+
+/* --- wordmark ------------------------------------------------------------ */
+
+.mark {
+  position: fixed;
+  top: var(--gutter);
+  left: var(--gutter);
+  pointer-events: none;
+}
+.mark h1 {
+  margin: 0;
+  font: 400 clamp(34px, 4.4vw, 56px)/0.9 var(--serif);
+  letter-spacing: -0.01em;
+}
+.mark h1 em { color: var(--a); }
+.mark p {
+  margin: 10px 0 0;
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* --- narrated caption ---------------------------------------------------- */
+
+/* caption and engine note share one bottom stack, so they never collide */
+.foot {
+  position: fixed;
+  left: var(--gutter);
+  right: var(--gutter);
+  bottom: var(--gutter);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  pointer-events: none;
+}
+.caption { max-width: min(560px, 52vw); }
+.caption .phase {
+  margin: 0 0 8px;
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.caption .phase #phase-no { color: var(--b); }
+.caption .line {
+  margin: 0;
+  font: 400 clamp(24px, 2.6vw, 34px)/1.15 var(--serif);
+  text-wrap: balance;
+  transition: opacity 0.6s ease;
+}
+.caption .line.swap { opacity: 0; }
+
+/* --- console ------------------------------------------------------------- */
+
+.console {
+  position: fixed;
+  top: var(--gutter);
+  right: var(--gutter);
+  width: 272px;
+  max-height: calc(100% - 2 * var(--gutter) - 52px);
+  overflow: auto;
+  background: var(--glass);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+}
+.console details { padding: 0 16px 14px; }
+.console summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 0 10px;
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+}
+.console summary::-webkit-details-marker { display: none; }
+.console summary::after { content: "–"; }
+.console details:not([open]) { padding-bottom: 0; }
+.console details:not([open]) summary::after { content: "+"; }
+
+.readouts { margin: 0 0 14px; border-top: 1px solid var(--rule); }
+.readouts div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.readouts dt { color: var(--dim); }
+.readouts dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+button, .seg span {
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+button:hover, .seg label:hover span { border-color: rgb(242 239 232 / 0.4); }
+button:focus-visible, .seg input:focus-visible + span, input[type="range"]:focus-visible {
+  outline: 2px solid var(--a);
+  outline-offset: 2px;
+}
+
+.transport { display: flex; gap: 8px; margin-bottom: 14px; }
+.transport button { flex: 1; }
+
+.seg {
+  border: 0;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.seg legend {
+  padding: 0;
+  margin-bottom: 6px;
+  color: var(--dim);
+  font-size: 11px;
+}
+.seg label { display: contents; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span, .seg button { flex: 1; text-align: center; padding: 5px 0; }
+.seg input:checked + span { background: var(--ink); color: #000; border-color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: #000; border-color: var(--ink); }
+
+.slider { display: block; margin: 0 0 12px; }
+.slider span {
+  display: flex;
+  justify-content: space-between;
+  color: var(--dim);
+  font-size: 11px;
+}
+.slider output { color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type="range"] {
+  width: 100%;
+  margin: 6px 0 0;
+  accent-color: var(--b);
+}
+
+/* --- engine strip ------------------------------------------------------- */
+
+.engine {
+  pointer-events: auto;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  color: var(--dim);
+  font-size: 12px;
+}
+.engine p { margin: 0; max-width: calc(100vw - 2 * var(--gutter) - 300px); }
+.engine strong { color: var(--ink); font-weight: 500; }
+.engine a { color: var(--ink); text-underline-offset: 3px; }
+
+/* --- no WebGPU ----------------------------------------------------------- */
+
+.fallback {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 18px;
+  padding: var(--gutter);
+  background: #000;
+  text-align: center;
+}
+.fallback[hidden] { display: none; }
+.fallback img { max-width: min(560px, 100%); margin: 0 auto; border-radius: 10px; }
+.fallback p { max-width: 52ch; margin: 0 auto; color: var(--dim); }
+
+/* --- small screens: console becomes a bottom sheet ---------------------- */
+
+@media (max-width: 720px) {
+  .console {
+    top: auto;
+    bottom: auto;
+    top: calc(var(--gutter) + 82px);
+    left: var(--gutter);
+    right: var(--gutter);
+    width: auto;
+    max-height: 60vh;
+  }
+  .caption { max-width: none; }
+  .caption .line { font-size: 22px; }
+  .engine { font-size: 11px; }
+  .engine p { max-width: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caption .line { transition: none; }
+}

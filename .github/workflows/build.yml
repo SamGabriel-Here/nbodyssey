@@ -49,3 +49,15 @@ jobs:
 
       - name: Barnes-Hut tree logic (CPU mirror of forces_bh.cu)
         run: python tools/lbvh_check.py
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Initial conditions of the WebGPU port
+        run: node --test web/

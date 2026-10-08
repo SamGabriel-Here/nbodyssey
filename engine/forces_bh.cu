@@ -122,69 +122,50 @@ void ensure_scratch(int n) {
 
 // --- phase 1: bounding box ---
 
-__global__ void bbox_partial_kernel(const float4* __restrict__ pos, int n,
-                                    float4* blk) {
-  __shared__ float3 s_lo[kForceBlock];
-  __shared__ float3 s_hi[kForceBlock];
-  float3 lo = {FLT_MAX, FLT_MAX, FLT_MAX};
-  float3 hi = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n;
-       i += gridDim.x * blockDim.x) {
-    float4 p = pos[i];
-    lo.x = fminf(lo.x, p.x); lo.y = fminf(lo.y, p.y); lo.z = fminf(lo.z, p.z);
-    hi.x = fmaxf(hi.x, p.x); hi.y = fmaxf(hi.y, p.y); hi.z = fmaxf(hi.z, p.z);
-  }
+__device__ __forceinline__ void grow(float3& lo, float3& hi, float4 l, float4 h) {
+  lo = make_float3(fminf(lo.x, l.x), fminf(lo.y, l.y), fminf(lo.z, l.z));
+  hi = make_float3(fmaxf(hi.x, h.x), fmaxf(hi.y, h.y), fmaxf(hi.z, h.z));
+}
+
+// Block-wide min/max of every thread's (lo, hi); thread 0 writes out[0..1].
+__device__ void block_bbox(float3 lo, float3 hi, float4* out) {
+  __shared__ float4 s_lo[kForceBlock];
+  __shared__ float4 s_hi[kForceBlock];
   int tid = threadIdx.x;
-  s_lo[tid] = lo;
-  s_hi[tid] = hi;
+  s_lo[tid] = make_float4(lo.x, lo.y, lo.z, 0.f);
+  s_hi[tid] = make_float4(hi.x, hi.y, hi.z, 0.f);
   __syncthreads();
   for (int s = blockDim.x / 2; s > 0; s >>= 1) {
     if (tid < s) {
-      s_lo[tid].x = fminf(s_lo[tid].x, s_lo[tid + s].x);
-      s_lo[tid].y = fminf(s_lo[tid].y, s_lo[tid + s].y);
-      s_lo[tid].z = fminf(s_lo[tid].z, s_lo[tid + s].z);
-      s_hi[tid].x = fmaxf(s_hi[tid].x, s_hi[tid + s].x);
-      s_hi[tid].y = fmaxf(s_hi[tid].y, s_hi[tid + s].y);
-      s_hi[tid].z = fmaxf(s_hi[tid].z, s_hi[tid + s].z);
+      grow(lo, hi, s_lo[tid + s], s_hi[tid + s]);
+      s_lo[tid] = make_float4(lo.x, lo.y, lo.z, 0.f);
+      s_hi[tid] = make_float4(hi.x, hi.y, hi.z, 0.f);
     }
     __syncthreads();
   }
   if (tid == 0) {
-    blk[2 * blockIdx.x] = make_float4(s_lo[0].x, s_lo[0].y, s_lo[0].z, 0.f);
-    blk[2 * blockIdx.x + 1] = make_float4(s_hi[0].x, s_hi[0].y, s_hi[0].z, 0.f);
+    out[0] = s_lo[0];
+    out[1] = s_hi[0];
   }
+}
+
+__global__ void bbox_partial_kernel(const float4* __restrict__ pos, int n,
+                                    float4* blk) {
+  float3 lo = {FLT_MAX, FLT_MAX, FLT_MAX};
+  float3 hi = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n;
+       i += gridDim.x * blockDim.x)
+    grow(lo, hi, pos[i], pos[i]);
+  block_bbox(lo, hi, blk + 2 * blockIdx.x);
 }
 
 __global__ void bbox_final_kernel(const float4* __restrict__ blk, int nblk,
                                   float4* aabb) {
-  __shared__ float3 s_lo[kForceBlock];
-  __shared__ float3 s_hi[kForceBlock];
   float3 lo = {FLT_MAX, FLT_MAX, FLT_MAX};
   float3 hi = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
-  for (int i = threadIdx.x; i < nblk; i += blockDim.x) {
-    float4 l = blk[2 * i], h = blk[2 * i + 1];
-    lo.x = fminf(lo.x, l.x); lo.y = fminf(lo.y, l.y); lo.z = fminf(lo.z, l.z);
-    hi.x = fmaxf(hi.x, h.x); hi.y = fmaxf(hi.y, h.y); hi.z = fmaxf(hi.z, h.z);
-  }
-  int tid = threadIdx.x;
-  s_lo[tid] = lo;
-  s_hi[tid] = hi;
-  __syncthreads();
-  for (int s = blockDim.x / 2; s > 0; s >>= 1) {
-    if (tid < s) {
-      s_lo[tid].x = fminf(s_lo[tid].x, s_lo[tid + s].x);
-      s_lo[tid].y = fminf(s_lo[tid].y, s_lo[tid + s].y);
-      s_lo[tid].z = fminf(s_lo[tid].z, s_lo[tid + s].z);
-      s_hi[tid].x = fmaxf(s_hi[tid].x, s_hi[tid + s].x);
-      s_hi[tid].y = fmaxf(s_hi[tid].y, s_hi[tid + s].y);
-      s_hi[tid].z = fmaxf(s_hi[tid].z, s_hi[tid + s].z);
-    }
-    __syncthreads();
-  }
-  if (tid == 0) {
-    aabb[0] = make_float4(s_lo[0].x, s_lo[0].y, s_lo[0].z, 0.f);
-    aabb[1] = make_float4(s_hi[0].x, s_hi[0].y, s_hi[0].z, 0.f);
-  }
+  for (int i = threadIdx.x; i < nblk; i += blockDim.x)
+    grow(lo, hi, blk[2 * i], blk[2 * i + 1]);
+  block_bbox(lo, hi, aabb);
 }
 
 // --- phase 2: Morton codes ---
@@ -291,24 +272,19 @@ __global__ void com_kernel(const float4* __restrict__ pos_sorted, int n,
     if (atomicAdd(&visit[node], 1) == 0) return;
 
     int2 ch = children[node];
-    float4 cl, ll, hl;
-    if (ch.x >= n - 1) {
-      cl = pos_sorted[ch.x - (n - 1)];
-      ll = hl = cl;
-    } else {
-      cl = com[ch.x];
-      ll = box_lo[ch.x];
-      hl = box_hi[ch.x];
-    }
-    float4 cr, lr, hr;
-    if (ch.y >= n - 1) {
-      cr = pos_sorted[ch.y - (n - 1)];
-      lr = hr = cr;
-    } else {
-      cr = com[ch.y];
-      lr = box_lo[ch.y];
-      hr = box_hi[ch.y];
-    }
+    // a leaf child is its own COM and a zero-size box
+    auto load = [&](int c, float4& cm, float4& lo, float4& hi) {
+      if (c >= n - 1) {
+        cm = lo = hi = pos_sorted[c - (n - 1)];
+      } else {
+        cm = com[c];
+        lo = box_lo[c];
+        hi = box_hi[c];
+      }
+    };
+    float4 cl, ll, hl, cr, lr, hr;
+    load(ch.x, cl, ll, hl);
+    load(ch.y, cr, lr, hr);
 
     float m = cl.w + cr.w;
     float inv = 1.f / m;   // particle masses are strictly positive
@@ -365,13 +341,7 @@ __global__ void traverse_kernel(const float4* __restrict__ pos_sorted,
         continue;
       }
     }
-    float dx = src.x - bi.x, dy = src.y - bi.y, dz = src.z - bi.z;
-    float dist2 = dx * dx + dy * dy + dz * dz + eps2;
-    float invr = rsqrtf(dist2);
-    float f = src.w * invr * invr * invr;
-    ai.x += dx * f;
-    ai.y += dy * f;
-    ai.z += dz * f;
+    ai = body_body(bi, src, ai, eps2);
   }
   acc[perm[t]] = make_float4(G * ai.x, G * ai.y, G * ai.z, 0.f);
 }
@@ -435,13 +405,7 @@ __global__ void traverse_warp_kernel(const float4* __restrict__ pos_sorted,
       }
       src = c;
     }
-    float dx = src.x - bi.x, dy = src.y - bi.y, dz = src.z - bi.z;
-    float dist2 = dx * dx + dy * dy + dz * dz + eps2;
-    float invr = rsqrtf(dist2);
-    float f = src.w * invr * invr * invr;
-    ai.x += dx * f;
-    ai.y += dy * f;
-    ai.z += dz * f;
+    ai = body_body(bi, src, ai, eps2);
   }
   if (live) acc[perm[t]] = make_float4(G * ai.x, G * ai.y, G * ai.z, 0.f);
 }

@@ -48,4 +48,4 @@ jobs:
         run: pip install numpy
 
       - name: Barnes-Hut tree logic (CPU mirror of forces_bh.cu)
-        run: python scripts/lbvh_check.py
+        run: python tools/lbvh_check.py

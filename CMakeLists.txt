@@ -17,12 +17,10 @@ endif()
 set(CMAKE_CUDA_FLAGS_RELEASE "-O3 --use_fast_math")
 
 add_executable(galaxy_sim
-  src/main.cu
-  src/simulation.cu
-  src/forces.cu
-  src/forces_bh.cu
-  src/integrator.cu
+  engine/main.cu
+  engine/forces.cu
+  engine/forces_bh.cu
+  engine/integrator.cu
 )
 
-target_include_directories(galaxy_sim PRIVATE src)
-set_target_properties(galaxy_sim PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+target_include_directories(galaxy_sim PRIVATE engine)

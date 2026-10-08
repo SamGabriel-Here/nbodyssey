@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot the GPU benchmark results produced by scripts/gpu_bench.sh.
+"""Plot the GPU benchmark results produced by tools/gpu_bench.sh.
 
 Left panel: force-computation time per step across particle counts — the naive
 kernel against both Barnes-Hut tree walks (per-thread and warp-cooperative) —
@@ -8,7 +8,6 @@ with measured speedups marked. Right panel: relative energy error over the full
 of the approximations shown honestly next to the speed.
 """
 import argparse
-import csv
 import os
 import numpy as np
 import matplotlib
@@ -16,28 +15,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-def read_results(path):
-    rows = []
-    with open(path) as f:
-        for r in csv.DictReader(f):
-            rows.append((int(r["n"]), r["method"], float(r["theta"]),
-                         float(r["ms_per_call"])))
-    return rows
-
-
-def read_energy(path):
-    t, rel = [], []
-    with open(path) as f:
-        for r in csv.DictReader(f):
-            t.append(float(r["time"]))
-            rel.append(abs(float(r["rel_error"])))
-    return np.array(t), np.array(rel)
-
-
 def series(rows, method, theta=0.5):
-    pts = sorted((n, ms) for n, m, th, ms in rows
-                 if m == method and th == theta)
-    return [p[0] for p in pts], [p[1] for p in pts]
+    s = np.sort(rows[(rows["method"] == method) & (rows["theta"] == theta)],
+                order="n")
+    return s["n"], s["ms_per_call"]
 
 
 def main():
@@ -51,7 +32,8 @@ def main():
     ap.add_argument("--out", default="docs/benchmark_t4.png")
     args = ap.parse_args()
 
-    rows = read_results(args.results)
+    rows = np.genfromtxt(args.results, delimiter=",", names=True, dtype=None,
+                         encoding="utf-8")
     nn, tn = series(rows, "naive")
     nt, tt = series(rows, "bh-thread")
     nw, tw = series(rows, "bh-warp")
@@ -64,9 +46,11 @@ def main():
                  label=r"Barnes-Hut, per-thread walk")
     ax[0].loglog(nw, tw, "o-", color="#2a9d5c",
                  label=r"Barnes-Hut, warp-cooperative walk")
-    ax[0].annotate("47x", xy=(1e6, np.sqrt(5324.170 * 112.103)), ha="center",
-                   va="center", fontsize=11, color="#1f77b4")
-    ax[0].annotate("176x", xy=(1e6, np.sqrt(112.103 * 30.328) * 0.28),
+    # speedups over naive at the largest n, read off the measured series
+    ax[0].annotate(f"{tn[-1] / tt[-1]:.0f}x", xy=(nn[-1], np.sqrt(tn[-1] * tt[-1])),
+                   ha="center", va="center", fontsize=11, color="#1f77b4")
+    ax[0].annotate(f"{tn[-1] / tw[-1]:.0f}x",
+                   xy=(nn[-1], np.sqrt(tt[-1] * tw[-1]) * 0.28),
                    ha="center", va="center", fontsize=11, color="#2a9d5c")
     ax[0].set_xlabel("particle count n")
     ax[0].set_ylabel("force computation, ms per step")
@@ -79,8 +63,8 @@ def main():
         (args.energy_thread, "#1f77b4", "BH per-thread"),
         (args.energy_warp, "#2a9d5c", "BH warp"),
     ]:
-        t, rel = read_energy(path)
-        ax[1].semilogy(t[1:], rel[1:], "o-", color=color, label=label,
+        d = np.genfromtxt(path, delimiter=",", names=True)
+        ax[1].semilogy(d["time"][1:], np.abs(d["rel_error"][1:]), "o-", color=color, label=label,
                        markersize=4)
     ax[1].set_xlabel("simulation time")
     ax[1].set_ylabel("|relative energy error|")

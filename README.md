@@ -59,7 +59,7 @@ Milestones:
 Because the state is single precision, correctness is not obvious, so the physics
 is pinned two ways.
 
-A CPU reference integrator (`scripts/reference_nbody.py`) implements the same
+A CPU reference integrator (`tools/reference_nbody.py`) implements the same
 force law, kick-drift-kick scheme, and energy diagnostic in NumPy. Running a full
 two-galaxy collision and tracking total energy gives the plot below: kinetic
 energy peaks at pericenter as the disks fall together, the potential well deepens
@@ -76,7 +76,7 @@ written to mirror the reference and are compiled in CI (`nvcc` targets a device
 architecture without needing a physical GPU on the runner).
 
 The Barnes-Hut tree approximation is pinned the same way, ahead of the GPU port.
-A CPU oracle (`scripts/barnes_hut_reference.py`) builds the octree, computes the
+A CPU oracle (`tools/barnes_hut_reference.py`) builds the octree, computes the
 cell centers of mass, and evaluates the softened force with the opening-angle
 criterion, then checks it against the exact all-pairs force. At `theta = 0` no
 cell is ever accepted and the result matches the exact force to round-off
@@ -89,7 +89,7 @@ collapse from O(n) toward O(log n). At the usual `theta = 0.5` that is roughly a
 
 The GPU tree code itself is tested in CI, not just compiled: a line-for-line
 CPU mirror of its Morton encoding, Karras radix-tree build, centers-of-mass
-pass, and stack traversal (`scripts/lbvh_check.py`) runs on every push and
+pass, and stack traversal (`tools/lbvh_check.py`) runs on every push and
 asserts that the tree is well formed (including under duplicate keys), that
 `theta = 0` reproduces the exact force to round-off, and that the traversal
 stack stays far below the depth limit hard-coded in the kernels.
@@ -183,8 +183,8 @@ Logs land in `benchmarks/`.
 ## Repository layout
 
 ```
-src/         CUDA kernels and host driver (forces, integrator, energy, main)
-scripts/     IC generator, CPU reference integrator, and renderers (Python)
+engine/       CUDA kernels and host driver (forces, integrator, energy, main)
+tools/     IC generator, CPU reference integrator, and renderers (Python)
 benchmarks/  timing and energy logs
 docs/        binary-format notes (FORMATS.md), figures, and the perf writeup
 ```
@@ -203,19 +203,19 @@ is the GPU's own output; on a CUDA machine the same commands with
 ```
 # set up the Python tooling
 python -m venv .venv && source .venv/bin/activate
-pip install -r scripts/requirements.txt
+pip install -r tools/requirements.txt
 
 # generate two colliding disk galaxies
-python scripts/generate_ic.py --particles 12000 --out ic.bin
+python tools/generate_ic.py --particles 12000 --out ic.bin
 
 # integrate on the CPU reference (this is what produced the figures above)
-python scripts/reference_nbody.py --ic ic.bin --steps 1500 --dump-every 5 --out frames/
+python tools/reference_nbody.py --ic ic.bin --steps 1500 --dump-every 5 --out frames/
 
 # render the frames to a movie (pass a directory instead of an .mp4 to keep PNGs)
-python scripts/render.py --frames frames/ --out collision.mp4
+python tools/render.py --frames frames/ --out collision.mp4
 
 # plot energy conservation from the log the run wrote
-python scripts/plot_energy.py --log benchmarks/energy_reference.csv --out energy.png
+python tools/plot_energy.py --log benchmarks/energy_reference.csv --out energy.png
 ```
 
 ## Building the GPU version
@@ -247,7 +247,7 @@ for Ampere, `89` for Ada). The run reports force timing on exit — plus a
 per-phase breakdown of the tree pipeline under `--force bh` — and writes an
 energy log alongside the frames.
 
-The entire benchmark session is scripted: `bash scripts/gpu_bench.sh` on any
+The entire benchmark session is scripted: `bash tools/gpu_bench.sh` on any
 CUDA machine (a Colab T4 works) builds, runs the `--compare-forces` gate, sweeps
 naive vs Barnes-Hut across particle counts, and leaves the results in
 `benchmarks/gpu_results.csv`.

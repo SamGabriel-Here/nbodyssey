@@ -7,7 +7,7 @@ first contact, pericenter, tidal bridge, and separated remnants. Reproducible so
 the figure in docs/ is generated, not hand-assembled.
 
 Example:
-    python scripts/stages_figure.py --frames frames/ --out docs/stages.png
+    python tools/stages_figure.py --frames frames/ --out docs/stages.png
 """
 import argparse
 import os
@@ -28,9 +28,7 @@ cA, cB = "#5ec8ff", "#ff9d3c"   # galaxy A cool blue, galaxy B warm gold
 
 
 def read_frame(path):
-    with open(path, "rb") as f:
-        n = int(np.frombuffer(f.read(4), "<i4")[0])
-        return np.frombuffer(f.read(n * 16), "<f4").reshape(n, 4)
+    return np.fromfile(path, "<f4", offset=4).reshape(-1, 4)   # int32 n, n float4
 
 
 def main():
